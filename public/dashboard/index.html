@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VeloReady Ops Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 2rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #f1f5f9; }
+    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid #334155;
+    }
+    .card-title {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+    }
+    .metric {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.25rem;
+    }
+    .metric-label {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .sub-metrics {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #334155;
+    }
+    .sub-metric {
+      flex: 1;
+    }
+    .sub-metric-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .sub-metric-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.25rem;
+    }
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .log-table th {
+      text-align: left;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+    }
+    .log-table td {
+      padding: 0.75rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #334155;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-webhook { background: #1e40af; color: #dbeafe; }
+    .badge-user { background: #7c2d12; color: #fed7aa; }
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+    }
+    .error {
+      background: #7f1d1d;
+      color: #fecaca;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .refresh-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 2rem;
+    }
+    .refresh-btn:hover { background: #2563eb; }
+    .timestamp {
+      text-align: right;
+      color: #64748b;
+      font-size: 0.75rem;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚴 VeloReady Ops Dashboard</h1>
+    <p class="subtitle">System metrics and monitoring</p>
+    
+    <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+      <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh Metrics</button>
+      <button class="refresh-btn" onclick="drainQueue()" style="background: #f59e0b;">⚡ Drain Queue Now</button>
+    </div>
+    
+    <div id="error" class="error" style="display: none;"></div>
+    <div id="loading" class="loading">Loading metrics...</div>
+    <div id="dashboard" style="display: none;">
+      
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Athletes</div>
+          <div class="metric" id="athletes-total">—</div>
+          <div class="metric-label">Total connected</div>
+          <div class="sub-metrics">
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="tokens-valid">—</div>
+              <div class="sub-metric-label">Valid tokens</div>
+            </div>
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="tokens-expired">—</div>
+              <div class="sub-metric-label">Expired</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Activities</div>
+          <div class="metric" id="activities-total">—</div>
+          <div class="metric-label">Total stored</div>
+          <div class="sub-metrics">
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="activities-24h">—</div>
+              <div class="sub-metric-label">Last 24h</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Deauthorizations</div>
+          <div class="metric" id="deauths-7d">—</div>
+          <div class="metric-label">Last 7 days</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Queue Depth (Upstash)</div>
+          <div class="metric" id="queue-total">—</div>
+          <div class="metric-label">Total pending jobs</div>
+          <div class="sub-metrics">
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="queue-live">—</div>
+              <div class="sub-metric-label">Live (webhooks)</div>
+            </div>
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="queue-backfill">—</div>
+              <div class="sub-metric-label">Backfill</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recent Deauthorizations</div>
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Athlete ID</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="deauth-log">
+            <tr><td colspan="2" style="text-align: center; color: #64748b;">No recent deauths</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Activity Visibility Breakdown</div>
+        <div id="visibility-breakdown"></div>
+      </div>
+
+      <div class="timestamp">Last updated: <span id="timestamp">—</span></div>
+    </div>
+  </div>
+
+  <script>
+    async function loadMetrics() {
+      const loading = document.getElementById('loading');
+      const dashboard = document.getElementById('dashboard');
+      const error = document.getElementById('error');
+      
+      loading.style.display = 'block';
+      dashboard.style.display = 'none';
+      error.style.display = 'none';
+
+      try {
+        const response = await fetch('/ops/metrics.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        // Update metrics
+        document.getElementById('athletes-total').textContent = data.athletes.total.toLocaleString();
+        document.getElementById('tokens-valid').textContent = data.athletes.tokens.valid.toLocaleString();
+        document.getElementById('tokens-expired').textContent = data.athletes.tokens.expired.toLocaleString();
+        document.getElementById('activities-total').textContent = data.activities.total.toLocaleString();
+        document.getElementById('activities-24h').textContent = data.activities.last_24h.toLocaleString();
+        document.getElementById('deauths-7d').textContent = data.deauths.last_7_days.toLocaleString();
+        
+        // Update queue metrics
+        const queueTotal = (data.queues?.live || 0) + (data.queues?.backfill || 0);
+        document.getElementById('queue-total').textContent = queueTotal.toLocaleString();
+        document.getElementById('queue-live').textContent = (data.queues?.live || 0).toLocaleString();
+        document.getElementById('queue-backfill').textContent = (data.queues?.backfill || 0).toLocaleString();
+        
+        // Update deauth log
+        const logBody = document.getElementById('deauth-log');
+        if (data.deauths.recent.length === 0) {
+          logBody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #64748b;">No recent deauths</td></tr>';
+        } else {
+          logBody.innerHTML = data.deauths.recent.map(d => `
+            <tr>
+              <td>${d.athlete_id}</td>
+              <td><span class="badge badge-${d.reason === 'webhook' ? 'webhook' : 'user'}">${d.reason}</span></td>
+            </tr>
+          `).join('');
+        }
+        
+        // Update visibility breakdown
+        const visDiv = document.getElementById('visibility-breakdown');
+        const vis = data.activities.by_visibility;
+        visDiv.innerHTML = Object.entries(vis).map(([key, count]) => `
+          <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155;">
+            <span style="text-transform: capitalize;">${key}</span>
+            <span style="font-weight: 600;">${count.toLocaleString()}</span>
+          </div>
+        `).join('');
+        
+        // Update timestamp
+        document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
+        
+        loading.style.display = 'none';
+        dashboard.style.display = 'block';
+        
+      } catch (err) {
+        error.textContent = `Error loading metrics: ${err.message}`;
+        error.style.display = 'block';
+        loading.style.display = 'none';
+      }
+    }
+
+    async function drainQueue() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = '⏳ Draining...';
+      
+      try {
+        const response = await fetch('/ops/drain-queue');
+        const result = await response.json();
+        
+        alert(`Queue drain completed!\n\nProcessed: ${result.processed || 0} jobs\nResults: ${JSON.stringify(result.results || [], null, 2)}`);
+        
+        // Refresh metrics after drain
+        await loadMetrics();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Drain Queue Now';
+      }
+    }
+
+    // Load on page load
+    loadMetrics();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadMetrics, 30000);
+  </script>
+</body>
+</html>
