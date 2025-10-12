@@ -59,6 +59,10 @@ const DECISION_RULES = [
 type FewShot = { user: string; assistant: string };
 const FEW_SHOTS: FewShot[] = [
   {
+    user: "Recovery: 57% | Sleep Delta: N/A | HRV Delta: N/A | RHR Delta: N/A | TSB: +5 | Target TSS: 60-80 | Plan: none\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.",
+    assistant: "Recovery at 57% but no sleep data from last night. Aim 65-70 TSS: Z2 endurance 60-75 min. Wear your watch tonight for better insights tomorrow."
+  },
+  {
     user: "Recovery: 81% | Sleep Delta: +5% | HRV Delta: +4% | RHR Delta: -2% | TSB: +3 | Target TSS: 60-80 | Plan: Endurance",
     assistant: "Recovery and HRV both strong — you're fresh. Aim 75-80 TSS with steady Z2 endurance and 4x30s cadence lifts. Fuel early (60 g/h) to keep glycogen topped."
   },
@@ -117,16 +121,30 @@ function isoDateUTC() {
 /** Build the live user content = context + rules + metrics line */
 function buildUserContent(payload: any) {
   const { recovery, sleepDelta, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan } = payload ?? {};
+  
+  // Check for missing data
+  const hasSleepData = sleepDelta !== null && sleepDelta !== undefined;
+  const hasHRVData = hrvDelta !== null && hrvDelta !== undefined;
+  const hasRHRData = rhrDelta !== null && rhrDelta !== undefined;
+  
+  // Build metrics line with "N/A" for missing data
   const metricsLine = [
     `Recovery: ${recovery}%`,
-    `Sleep Delta: ${Math.round((sleepDelta ?? 0) * 100)}%`,
-    `HRV Delta: ${Math.round((hrvDelta ?? 0) * 100)}%`,
-    `RHR Delta: ${Math.round((rhrDelta ?? 0) * 100)}%`,
+    hasSleepData ? `Sleep Delta: ${Math.round(sleepDelta * 100)}%` : `Sleep Delta: N/A`,
+    hasHRVData ? `HRV Delta: ${Math.round(hrvDelta * 100)}%` : `HRV Delta: N/A`,
+    hasRHRData ? `RHR Delta: ${Math.round(rhrDelta * 100)}%` : `RHR Delta: N/A`,
     `TSB: ${tsb}`,
     `Target TSS: ${tssLow}-${tssHigh}`,
     plan ? `Plan: ${plan}` : null
   ].filter(Boolean).join(" | ");
-  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}`;
+  
+  // Add warning if critical data is missing
+  let warning = "";
+  if (!hasSleepData) {
+    warning = "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
+  }
+  
+  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}${warning}`;
 }
 
 /** Compose messages with system + few-shots + live user content */
