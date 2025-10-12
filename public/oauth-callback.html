@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<!--
+  VeloReady OAuth Callback - Universal Handler
+  
+  This page handles OAuth callbacks for both Strava and Intervals.icu.
+  
+  USAGE:
+  1. Strava: https://veloready.app/oauth/strava/callback
+     - Detects 'strava' in path
+     - Exchanges code for token via backend
+     - Redirects to: https://veloready.app/oauth/strava/done?ok=1&state=...&athlete_id=...
+  
+  2. Intervals.icu: https://veloready.app/oauth/intervals/callback
+     - Detects 'intervals' in path
+     - Redirects directly with code (app handles token exchange)
+     - Redirects to: com.markboulton.veloready://oauth/callback?code=...&state=...
+  
+  PROVIDER DETECTION:
+  - Auto-detects from URL path (/strava/ or /intervals/)
+  - Can override with ?provider=strava or ?provider=intervals query param
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>VeloReady – OAuth Callback</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      text-align: center;
+      padding: 50px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 420px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .status {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    .status.ok { color: #28a745; }
+    .status.err { color: #dc3545; }
+    .status.pending { color: #ffc107; }
+    .info {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #fc4c02;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .debug {
+      margin-top: 20px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      text-align: left;
+      color: #666;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="status" class="status pending">⏳ Processing authentication...</div>
+    <div class="spinner"></div>
+    <div id="info" class="info">
+      Connecting your Strava account...<br>
+      Please wait.
+    </div>
+    <div id="debug" class="debug" style="display: none;"></div>
+  </div>
+
+  <script>
+    const DEBUG = true; // Set to true for debugging
+    const logs = [];
+    
+    function log(message, level = 'info') {
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
+      logs.push(logEntry);
+      console.log(logEntry);
+      
+      if (DEBUG) {
+        const debugEl = document.getElementById('debug');
+        debugEl.style.display = 'block';
+        debugEl.innerHTML = logs.join('<br>');
+        debugEl.scrollTop = debugEl.scrollHeight;
+      }
+    }
+
+    function updateUI(status, message, isError = false) {
+      const statusEl = document.getElementById('status');
+      const infoEl = document.getElementById('info');
+      
+      statusEl.textContent = status;
+      statusEl.className = isError ? 'status err' : 'status ok';
+      infoEl.innerHTML = message;
+      
+      // Hide spinner
+      const spinner = document.querySelector('.spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+
+    function detectProvider() {
+      // Detect provider from URL path
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('strava')) return 'strava';
+      if (path.includes('intervals')) return 'intervals';
+      
+      // Fallback: check referrer or default to strava
+      return 'strava';
+    }
+
+    async function handleOAuthCallback() {
+      log('OAuth callback page loaded');
+      log(`Full URL: ${window.location.href}`);
+      log(`Pathname: ${window.location.pathname}`);
+      log(`Search: ${window.location.search}`);
+      log(`Hash: ${window.location.hash}`);
+      
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+      const errorDescription = params.get('error_description');
+      const provider = params.get('provider') || detectProvider();
+      
+      log(`Provider: ${provider}`);
+      log(`URL params: code=${code ? 'present' : 'missing'}, state=${state}, error=${error}`);
+
+      // Handle OAuth errors
+      if (error) {
+        log(`${provider} OAuth error: ${error} - ${errorDescription}`, 'error');
+        updateUI(
+          '❌ Authentication Denied',
+          `${provider === 'strava' ? 'Strava' : 'Intervals.icu'} returned an error: ${errorDescription || error}<br>Please return to VeloReady and try again.`,
+          true
+        );
+        return;
+      }
+
+      // Validate we have a code
+      if (!code) {
+        log('No OAuth code found in URL', 'error');
+        updateUI(
+          '⚠️ Invalid Callback',
+          'No authorization code received.<br>Return to VeloReady and try connecting again.',
+          true
+        );
+        return;
+      }
+
+      // Validate we have state
+      if (!state) {
+        log('No state parameter found in URL', 'error');
+        updateUI(
+          '⚠️ Security Error',
+          'Missing state parameter. This may be a security issue.<br>Return to VeloReady and try again.',
+          true
+        );
+        return;
+      }
+
+      // Route to appropriate handler
+      if (provider === 'intervals') {
+        handleIntervalsCallback(code, state, params);
+      } else {
+        await handleStravaCallback(code, state, params);
+      }
+    }
+
+    function handleIntervalsCallback(code, state, params) {
+      log('Intervals.icu: Redirecting to app with code');
+
+      // For Intervals.icu, redirect directly to the app with code and state
+      // The app will handle the token exchange
+      const redirectUrl = params.get('redirect') || 'com.markboulton.veloready://oauth/callback';
+      const deepLink = `${redirectUrl}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      
+      log(`Redirecting to: ${deepLink}`);
+      
+      // CRITICAL: Redirect immediately
+      window.location.replace(deepLink);
+    }
+
+    async function handleStravaCallback(code, state, params) {
+      log(`Strava: Valid OAuth callback received, exchanging code for token...`);
+
+      try {
+        // Call your backend to exchange the code for an access token
+        // Your backend should validate the state, exchange the code, and return success/error
+        const exchangeUrl = `/.netlify/functions/oauth-strava-token-exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+        
+        log(`Calling backend: ${exchangeUrl}`);
+        
+        const response = await fetch(exchangeUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        log(`Backend response status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          log(`Backend error: ${errorText}`, 'error');
+          throw new Error(`Backend returned ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        log(`Backend response: ${JSON.stringify(data)}`);
+
+        // Extract response data
+        const { ok, athlete_id, error: backendError } = data;
+
+        if (backendError || ok === 0) {
+          log(`Backend error: ${backendError}`, 'error');
+          updateUI(
+            '❌ Connection Failed',
+            `Error: ${backendError}<br>Please return to VeloReady and try again.`,
+            true
+          );
+          return;
+        }
+
+        // Success! Build the deep link back to the app
+        // Use custom URL scheme so ASWebAuthenticationSession can capture it
+        const deepLink = `veloready://oauth/strava/done?ok=1&state=${encodeURIComponent(state)}&athlete_id=${encodeURIComponent(athlete_id || '')}`;
+        
+        log(`Success! Redirecting to app: ${deepLink}`);
+        
+        // CRITICAL: Redirect immediately - do NOT show UI or delay
+        // ASWebAuthenticationSession needs to intercept the redirect before any UI shows
+        window.location.replace(deepLink);
+
+      } catch (err) {
+        log(`Exception during token exchange: ${err.message}`, 'error');
+        console.error('OAuth callback error:', err);
+        
+        updateUI(
+          '❌ Connection Error',
+          `Failed to complete authentication: ${err.message}<br>Please check your network and try again.`,
+          true
+        );
+      }
+    }
+
+    // Start the OAuth flow when page loads
+    handleOAuthCallback();
+  </script>
+</body>
+</html>

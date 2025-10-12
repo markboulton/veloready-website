@@ -1,0 +1,15 @@
+{
+    "applinks": {
+        "details": [
+            {
+                "appIDs": [ "C79WM3NZ27.com.markboulton.rideready" ],
+                "components": [
+                    {
+                        "/": "/oauth/callback",
+                        "comment": "OAuth callback for RideReady app"
+                    }
+                ]
+            }
+        ]
+    }
+}

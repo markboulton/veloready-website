@@ -1,0 +1,24 @@
+{
+  "name": "veloready.app",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^6.3.0",
+    "@netlify/functions": "^2.8.0",
+    "node-fetch": "^3.3.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "netlify-cli": "^17.31.0",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev",
+    "build": "echo \"No build step\""
+  }
+}

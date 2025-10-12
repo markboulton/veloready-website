@@ -1,0 +1,66 @@
+import { HandlerEvent } from "@netlify/functions";
+import { enqueueLive } from "../lib/queue";
+import { withDb } from "../lib/db";
+
+export async function handler(event: HandlerEvent) {
+  // Verification handshake
+  if (event.httpMethod === "GET") {
+    const url = new URL(event.rawUrl);
+    const challenge = url.searchParams.get("hub.challenge");
+    return { statusCode: 200, body: JSON.stringify({ "hub.challenge": challenge }) };
+  }
+
+  // Handle event quickly (<2s)
+  const body = JSON.parse(event.body || "{}");
+  // Example payload shape: { owner_id, object_id, object_type, aspect_type, updates, ... }
+
+  // Log webhook event to audit log
+  try {
+    await withDb(async (c) => {
+      await c.query(
+        `insert into audit_log(kind, ref_id, note) values ($1,$2,$3)`,
+        ['webhook', String(body.owner_id), `${body.object_type}:${body.aspect_type}:${body.object_id || 'n/a'}`]
+      );
+    });
+  } catch (error) {
+    console.error("[Webhook] Failed to log to audit_log:", error);
+    // Continue processing even if logging fails
+  }
+
+  if (body.object_type === "activity" && body.aspect_type === "create") {
+    await enqueueLive({ kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+  } else if (body.object_type === "activity" && body.aspect_type === "update") {
+    // only re-fetch if meaningful fields changed
+    const changed = body.updates || {};
+    if (changed.title || changed.type || changed.visibility || changed.private) {
+      await enqueueLive({ kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+    }
+  } else if (body.aspect_type === "delete") {
+    await enqueueLive({ kind: "delete-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+  } else if (body.object_type === "athlete" && body.updates?.authorized === "false") {
+    // Webhook-driven deauth: immediate cleanup
+    const stravaId = String(body.owner_id);
+    console.log(`[Strava Webhook] Deauth event for athlete ${stravaId}`);
+    
+    await withDb(async (c) => {
+      // Log the deauth action
+      await c.query(
+        `insert into audit_log(kind, ref_id, note) values ($1,$2,$3)`,
+        ['deauth', stravaId, 'webhook']
+      );
+      
+      // Delete athlete record (cascade will remove tokens and activities)
+      const result = await c.query(
+        `delete from athlete where id = $1`,
+        [stravaId]
+      );
+      
+      console.log(`[Strava Webhook] Deleted ${result.rowCount} athlete record(s)`);
+    });
+    
+    // Also enqueue for any additional cleanup
+    await enqueueLive({ kind: "deauth", athlete_id: body.owner_id });
+  }
+
+  return { statusCode: 200, body: "ok" };
+}

@@ -1,0 +1,111 @@
+[build]
+  command = ""
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["pg"]
+
+[dev]
+  framework = "#static"
+
+# ===== STRAVA OAUTH =====
+
+[[redirects]]
+  from = "/oauth/strava/start"
+  to = "/.netlify/functions/oauth-strava-start"
+  status = 200
+
+# CHANGED: Now serves HTML instead of going directly to function
+[[redirects]]
+  from = "/oauth/strava/callback"
+  to = "/oauth-callback.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/oauth/strava/done"
+  to = "/oauth-callback.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/webhooks/strava"
+  to = "/.netlify/functions/webhooks-strava"
+  status = 200
+
+[[redirects]]
+  from = "/api/me/strava/status"
+  to = "/.netlify/functions/me-strava-status"
+  status = 200
+
+[[redirects]]
+  from = "/api/me/strava/disconnect"
+  to = "/.netlify/functions/me-strava-disconnect"
+  status = 200
+
+[[redirects]]
+  from = "/api/request-streams"
+  to = "/.netlify/functions/api-request-streams"
+  status = 200
+
+[[redirects]]
+  from = "/ops/metrics.json"
+  to = "/.netlify/functions/ops-metrics"
+  status = 200
+
+[[redirects]]
+  from = "/ops/drain-queue"
+  to = "/.netlify/functions/ops-drain-queue"
+  status = 200
+
+[[redirects]]
+  from = "/ops/enqueue-test"
+  to = "/.netlify/functions/ops-enqueue-test"
+  status = 200
+
+# ===== INTERVALS.ICU OAUTH =====
+
+# NEW: Intervals.icu callback (serves same HTML)
+[[redirects]]
+  from = "/oauth/intervals/callback"
+  to = "/oauth-callback.html"
+  status = 200
+  force = true
+
+# ===== AI ENDPOINTS =====
+
+[[redirects]]
+  from = "/ai-brief"
+  to = "/.netlify/functions/ai-brief"
+  status = 200
+
+[[redirects]]
+  from = "/ai-ride-summary"
+  to = "/.netlify/functions/ai-ride-summary"
+  status = 200
+
+# ===== SCHEDULED FUNCTIONS =====
+
+[[scheduled.functions]]
+  name = "nightly-reconcile"
+  cron = "0 2 * * *"
+
+[[scheduled.functions]]
+  name = "drain-queues"
+  cron = "*/5 * * * *"
+
+[[scheduled.functions]]
+  name = "rate-monitor"
+  cron = "*/15 * * * *"
+
+[[scheduled.functions]]
+  name = "cleanup-old-streams"
+  cron = "0 3 * * *"
+
+# ===== OPS DASHBOARD =====
+
+[[redirects]]
+  from = "/ops"
+  to   = "/dashboard.html"
+  status = 200

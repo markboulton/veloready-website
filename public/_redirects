@@ -1,0 +1,19 @@
+# AI Endpoints
+/ai-brief /.netlify/functions/ai-brief 200
+/ai-ride-summary /.netlify/functions/ai-ride-summary 200
+
+# Strava OAuth
+/oauth/strava/start /.netlify/functions/oauth-strava-start 200
+/oauth/strava/callback /oauth-callback.html 200
+/oauth/strava/done /oauth-callback.html 200
+
+# Strava API
+/api/me/strava/status /.netlify/functions/me-strava-status 200
+/api/me/strava/token /.netlify/functions/me-strava-token 200
+/api/me/strava/disconnect /.netlify/functions/me-strava-disconnect 200
+
+# Strava Webhooks
+/webhooks/strava /.netlify/functions/webhooks-strava 200
+
+# Intervals.icu OAuth
+/oauth/intervals/callback /oauth-callback.html 200
