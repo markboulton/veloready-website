@@ -38,7 +38,19 @@
   force = true
 
 [[redirects]]
+  from = "/auth/strava/callback"
+  to = "/oauth-callback.html"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/oauth/strava/done"
+  to = "/oauth-callback.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/strava/done"
   to = "/oauth-callback.html"
   status = 200
   force = true
