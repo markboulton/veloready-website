@@ -133,5 +133,5 @@
 
 [[redirects]]
   from = "/ops"
-  to   = "/dashboard.html"
+  to   = "/dashboard/index.html"
   status = 200

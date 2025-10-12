@@ -2,6 +2,11 @@
 /ai-brief /.netlify/functions/ai-brief 200
 /ai-ride-summary /.netlify/functions/ai-ride-summary 200
 
+# Ops dashboard
+/ops /dashboard/index.html 200
+/ops/metrics.json /.netlify/functions/ops-metrics 200
+/ops/drain-queue /.netlify/functions/ops-drain-queue 200
+
 # Strava OAuth
 /oauth/strava/start /.netlify/functions/oauth-strava-start 200
 /oauth/strava/callback /oauth-callback.html 200
