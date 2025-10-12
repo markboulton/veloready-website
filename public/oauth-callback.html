@@ -13,7 +13,7 @@
   2. Intervals.icu: https://veloready.app/oauth/intervals/callback
      - Detects 'intervals' in path
      - Redirects directly with code (app handles token exchange)
-     - Redirects to: com.markboulton.veloready://oauth/callback?code=...&state=...
+     - Redirects to: veloready://auth/intervals/callback?code=...&state=...
   
   PROVIDER DETECTION:
   - Auto-detects from URL path (/strava/ or /intervals/)
@@ -194,10 +194,15 @@
 
       // For Intervals.icu, redirect directly to the app with code and state
       // The app will handle the token exchange
-      const redirectUrl = params.get('redirect') || 'com.markboulton.veloready://oauth/callback';
-      const deepLink = `${redirectUrl}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      const deepLink = `veloready://auth/intervals/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
       
       log(`Redirecting to: ${deepLink}`);
+      
+      updateUI(
+        '✅ Authentication Successful',
+        'Redirecting to VeloReady...<br>If the app doesn\'t open, <a href="' + deepLink + '">tap here</a>.',
+        false
+      );
       
       // CRITICAL: Redirect immediately
       window.location.replace(deepLink);
@@ -246,9 +251,15 @@
 
         // Success! Build the deep link back to the app
         // Use custom URL scheme so ASWebAuthenticationSession can capture it
-        const deepLink = `veloready://oauth/strava/done?ok=1&state=${encodeURIComponent(state)}&athlete_id=${encodeURIComponent(athlete_id || '')}`;
+        const deepLink = `veloready://auth/strava/done?ok=1&state=${encodeURIComponent(state)}&athlete_id=${encodeURIComponent(athlete_id || '')}`;
         
         log(`Success! Redirecting to app: ${deepLink}`);
+        
+        updateUI(
+          '✅ Authentication Successful',
+          'Redirecting to VeloReady...<br>If the app doesn\'t open, <a href="' + deepLink + '">tap here</a>.',
+          false
+        );
         
         // CRITICAL: Redirect immediately - do NOT show UI or delay
         // ASWebAuthenticationSession needs to intercept the redirect before any UI shows
