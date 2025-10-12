@@ -218,7 +218,12 @@ export async function handler(event, _context): Promise<ReturnType<Handler>> {
     catch { return { statusCode: 400, body: "Invalid JSON" }; }
 
     const ttl = Number(process.env.CACHE_TTL_SECONDS || 86400);
-    const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}`;
+    
+    // Check if sleep data is missing - if so, use a different cache key to avoid stale responses
+    const { sleepDelta, hrvDelta, rhrDelta } = payload ?? {};
+    const hasMissingData = sleepDelta === null || sleepDelta === undefined;
+    const cacheKeySuffix = hasMissingData ? "no-sleep" : "full";
+    const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${cacheKeySuffix}`;
 
     try {
       const store = getStore({ name: "ai-brief" });
