@@ -8,6 +8,7 @@
   "dependencies": {
     "@netlify/blobs": "^6.3.0",
     "@netlify/functions": "^2.8.0",
+    "@supabase/supabase-js": "^2.75.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.16.3"
   },
