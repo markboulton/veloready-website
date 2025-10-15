@@ -16,13 +16,10 @@ function cacheSet(key: string, text: string, ttlSec: number) {
 }
 
 /** ---------- Prompt ---------- */
-const PROMPT_VERSION = "coach-v4-sport";
+const PROMPT_VERSION = "coach-v5-cycling";
 
-/** Sport types matching iOS app */
-type PrimarySport = "cycling" | "strength" | "general";
-
-/** ----- System prompts by sport ----- */
-const CYCLING_PROMPT = [
+/** ----- System prompt: VeloReady Coach persona ----- */
+const SYSTEM_PROMPT = [
   "You are 'VeloReady Coach', a concise but insightful cycling coach for serious amateurs who enjoy data but often struggle to interpret it.",
   "Voice: calm, knowledgeable, encouraging; UK English; avoid hype or filler; 2-3 short sentences; no emojis; never make medical claims.",
   "You help riders who are time-crunched, analytical, and want to train smart without burning out. They might have a coach but usually ride solo and value evidence-based reasoning.",
@@ -38,47 +35,6 @@ const CYCLING_PROMPT = [
   "- If time-crunched, recommend the most effective 45-60 min session within limits.",
   "Constraints: Max 280 chars; never mention being an AI; never output internal reasoning; output only the final brief."
 ].join(" ");
-
-const STRENGTH_PROMPT = [
-  "You are 'VeloReady Coach', a strength training coach for athletes who balance lifting with other activities.",
-  "Voice: calm, knowledgeable, encouraging; UK English; avoid hype or filler; 2-3 short sentences; no emojis; never make medical claims.",
-  "You help athletes who want to build strength sustainably without overtraining. They track recovery metrics and value evidence-based programming.",
-  "Purpose: interpret today's recovery and readiness to decide training intensity — and explain why briefly.",
-  "Must:",
-  "- Always reference at least two of: Recovery %, Sleep Delta, HRV Delta, RHR Delta, or recent training load.",
-  "- Give a clear recommendation (sets/reps, RPE, or rest day) AND one actionable habit cue (protein timing, mobility, or recovery).",
-  "- Use cause-effect language: 'Because HRV is down...', 'Since recovery is high...'.",
-  "- If Recovery < 50% or HRV Delta <= -2% and RHR Delta >= +2%, prescribe deload or rest.",
-  "- If Recovery >= 66%, recommend progressive overload or skill work.",
-  "- Focus on recovery between sessions (48-72h) and avoiding CNS fatigue.",
-  "- Mention: compound movements, RPE 7-9 range, mobility work, protein intake (1.6-2.2 g/kg).",
-  "Constraints: Max 280 chars; never mention being an AI; never output internal reasoning; output only the final brief."
-].join(" ");
-
-const GENERAL_PROMPT = [
-  "You are 'VeloReady Coach', a wellness coach for active individuals who track daily movement and recovery.",
-  "Voice: calm, encouraging, practical; UK English; avoid hype or filler; 2-3 short sentences; no emojis; never make medical claims.",
-  "You help people maintain consistent daily activity without burnout. They value data but want simple, actionable guidance.",
-  "Purpose: interpret today's recovery and readiness to recommend activity level — and explain why briefly.",
-  "Must:",
-  "- Always reference at least two of: Recovery %, Sleep Delta, HRV Delta, RHR Delta.",
-  "- Give a clear recommendation (walking, easy activity, or rest) AND one actionable habit cue (steps, sleep, hydration, or stress management).",
-  "- Use cause-effect language: 'Because sleep is down...', 'Since HRV is up...'.",
-  "- If Recovery < 50% or poor sleep, recommend light movement or rest.",
-  "- If Recovery >= 66%, encourage higher activity but keep it enjoyable.",
-  "- Focus on: consistency over intensity, daily steps (8-12k), sleep quality, stress reduction.",
-  "- Avoid: structured training zones, TSS, FTP — focus on movement, wellbeing, and sustainable habits.",
-  "Constraints: Max 280 chars; never mention being an AI; never output internal reasoning; output only the final brief."
-].join(" ");
-
-function getSystemPrompt(sport: PrimarySport): string {
-  switch (sport) {
-    case "cycling": return CYCLING_PROMPT;
-    case "strength": return STRENGTH_PROMPT;
-    case "general": return GENERAL_PROMPT;
-    default: return CYCLING_PROMPT;
-  }
-}
 
 /** ----- Context: rider lifestyle & goals ----- */
 const CONTEXT_PREFIX = [
@@ -192,12 +148,12 @@ function buildUserContent(payload: any) {
 }
 
 /** Compose messages with system + few-shots + live user content */
-async function callOpenAI(userContent: string, sport: PrimarySport = "cycling"): Promise<string> {
+async function callOpenAI(userContent: string): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("no OPENAI_API_KEY");
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-    { role: "system" as const, content: getSystemPrompt(sport) },
+    { role: "system" as const, content: SYSTEM_PROMPT },
     ...FEW_SHOTS.flatMap(ex => [
       { role: "user" as const, content: ex.user },
       { role: "assistant" as const, content: ex.assistant }
@@ -263,14 +219,11 @@ export const handler: Handler = async (event, _context) => {
 
     const ttl = Number(process.env.CACHE_TTL_SECONDS || 86400);
     
-    // Extract sport preference (default to cycling for backwards compat)
-    const primarySport: PrimarySport = payload.primarySport || "cycling";
-    
     // Check if sleep data is missing - if so, use a different cache key to avoid stale responses
     const { sleepDelta, hrvDelta, rhrDelta } = payload ?? {};
     const hasMissingData = sleepDelta === null || sleepDelta === undefined;
     const cacheKeySuffix = hasMissingData ? "no-sleep" : "full";
-    const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${primarySport}:${cacheKeySuffix}`;
+    const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${cacheKeySuffix}`;
 
     try {
       const store = getStore({ name: "ai-brief" });
@@ -285,7 +238,7 @@ export const handler: Handler = async (event, _context) => {
 
       const userContent = buildUserContent(payload);
       let text: string;
-      try { text = await callOpenAI(userContent, primarySport); } catch { text = fallbackText(payload); }
+      try { text = await callOpenAI(userContent); } catch { text = fallbackText(payload); }
 
       await store.set(cacheKey, text, { metadata: { ttl: ttl.toString() } });
       return {
@@ -305,7 +258,7 @@ export const handler: Handler = async (event, _context) => {
       }
       const userContent = buildUserContent(payload);
       let text: string;
-      try { text = await callOpenAI(userContent, primarySport); } catch { text = fallbackText(payload); }
+      try { text = await callOpenAI(userContent); } catch { text = fallbackText(payload); }
       cacheSet(cacheKey, text, ttl);
       return {
         statusCode: 200,
