@@ -13,11 +13,12 @@ export async function upsertActivitySummary(c: Client, a: any) {
   const userId = athlete?.user_id || null;
   
   await c.query(`
-    insert into activity (id, athlete_id, user_id, start_date, type, distance_m, moving_time_s, total_elevation_gain_m,
-                          average_watts, average_heartrate, max_heartrate, private, visibility, created_at, updated_at)
-    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now(), now())
+    insert into activity (id, athlete_id, user_id, name, start_date, type, distance_m, moving_time_s, total_elevation_gain_m,
+                          average_watts, average_heartrate, max_heartrate, private, visibility, source, created_at, updated_at)
+    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now(), now())
     on conflict (id) do update set
       user_id=excluded.user_id,
+      name=excluded.name,
       type=excluded.type,
       distance_m=excluded.distance_m,
       moving_time_s=excluded.moving_time_s,
@@ -27,11 +28,12 @@ export async function upsertActivitySummary(c: Client, a: any) {
       max_heartrate=excluded.max_heartrate,
       private=excluded.private,
       visibility=excluded.visibility,
+      source=excluded.source,
       updated_at=now()
   `, [
-    a.id, a.athlete.id, userId, a.start_date, a.type, a.distance, a.moving_time,
+    a.id, a.athlete.id, userId, a.name, a.start_date, a.type, a.distance, a.moving_time,
     a.total_elevation_gain, a.average_watts, a.average_heartrate, a.max_heartrate,
-    a.private, a.visibility
+    a.private, a.visibility, 'strava'
   ]);
 }
 

@@ -1,0 +1,24 @@
+To: api@strava.com
+Subject: Webhook subscription stuck - cannot delete or update (ID: 308650)
+
+Hi Strava API Team,
+
+I have a webhook subscription in an inconsistent state that I cannot manage:
+
+Application Details:
+- Client ID: 33643
+- Webhook ID: 308650
+- Current callback: https://rideready.icu/webhooks/strava
+- Desired callback: https://veloready.app/webhooks/strava
+
+Issue:
+- LIST endpoint shows webhook exists
+- GET by ID returns "Record Not Found"
+- DELETE returns "Resource Not Found"
+- CREATE new webhook returns "already exists"
+
+The old callback URL (rideready.icu) is no longer accessible due to SSL issues, so webhooks are failing. I need to update to the new domain (veloready.app).
+
+Could you please delete webhook ID 308650 so I can create a new subscription?
+
+Thank you!
