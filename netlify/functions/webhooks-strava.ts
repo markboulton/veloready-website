@@ -17,9 +17,13 @@ export async function handler(event: HandlerEvent) {
   // Log webhook event to audit log
   try {
     await withDb(async (c) => {
+      // Get user_id from athlete for RLS compliance
+      const { rows } = await c.query(`SELECT user_id FROM athlete WHERE id = $1`, [body.owner_id]);
+      const userId = rows[0]?.user_id || null;
+      
       await c.query(
-        `insert into audit_log(kind, ref_id, note) values ($1,$2,$3)`,
-        ['webhook', String(body.owner_id), `${body.object_type}:${body.aspect_type}:${body.object_id || 'n/a'}`]
+        `insert into audit_log(kind, ref_id, note, athlete_id, user_id) values ($1,$2,$3,$4,$5)`,
+        ['webhook', String(body.owner_id), `${body.object_type}:${body.aspect_type}:${body.object_id || 'n/a'}`, body.owner_id, userId]
       );
     });
   } catch (error) {
@@ -43,10 +47,14 @@ export async function handler(event: HandlerEvent) {
     console.log(`[Strava Webhook] Deauth event for athlete ${stravaId}`);
     
     await withDb(async (c) => {
+      // Get user_id before deleting athlete
+      const { rows } = await c.query(`SELECT user_id FROM athlete WHERE id = $1`, [stravaId]);
+      const userId = rows[0]?.user_id || null;
+      
       // Log the deauth action
       await c.query(
-        `insert into audit_log(kind, ref_id, note) values ($1,$2,$3)`,
-        ['deauth', stravaId, 'webhook']
+        `insert into audit_log(kind, ref_id, note, athlete_id, user_id) values ($1,$2,$3,$4,$5)`,
+        ['deauth', stravaId, 'webhook', stravaId, userId]
       );
       
       // Delete athlete record (cascade will remove tokens and activities)

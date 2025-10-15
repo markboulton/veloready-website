@@ -23,10 +23,14 @@ export async function handler(event: HandlerEvent) {
     console.log(`[Strava Disconnect] User-initiated deauth for athlete ${stravaId}`);
 
     await withDb(async (c) => {
+      // Get user_id before deleting athlete
+      const { rows } = await c.query(`SELECT user_id FROM athlete WHERE id = $1`, [stravaId]);
+      const userId = rows[0]?.user_id || null;
+      
       // Log the deauth action
       await c.query(
-        `insert into audit_log(kind, ref_id, note) values ($1,$2,$3)`,
-        ['deauth', stravaId, 'user requested']
+        `insert into audit_log(kind, ref_id, note, athlete_id, user_id) values ($1,$2,$3,$4,$5)`,
+        ['deauth', stravaId, 'user requested', stravaId, userId]
       );
       
       // Delete athlete record (cascade will remove tokens)
