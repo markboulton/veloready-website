@@ -138,14 +138,14 @@
   cron = "0 3 * * *"
 
 # ===== OPS DASHBOARD =====
-# Dashboard is password-protected via _headers file
+# Dashboard is password-protected via Edge Function
 
 [[redirects]]
   from = "/ops"
-  to   = "/dashboard/index.html"
+  to   = "/dashboard.html"
   status = 200
 
 [[redirects]]
   from = "/ops/*"
-  to   = "/dashboard/:splat"
+  to   = "/dashboard.html"
   status = 200
