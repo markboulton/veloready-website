@@ -25,7 +25,7 @@ export default async (request: Request, context: any) => {
     const [username, password] = credentials.split(':');
 
     const validUsername = 'admin';
-    const validPassword = 'VeloReady2025!SecureDashboard#Ops';
+    const validPassword = 'mabo4283';
 
     if (username === validUsername && password === validPassword) {
       // Authentication successful - pass through to the actual page
