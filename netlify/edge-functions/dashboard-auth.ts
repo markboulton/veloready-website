@@ -9,7 +9,7 @@ export default async (request: Request, context: any) => {
   // Check for authorization header
   const authHeader = request.headers.get('authorization');
   
-  if (!authHeader) {
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
     return new Response('Authentication required', {
       status: 401,
       headers: {
@@ -19,16 +19,20 @@ export default async (request: Request, context: any) => {
   }
 
   // Verify credentials
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = atob(base64Credentials);
-  const [username, password] = credentials.split(':');
+  try {
+    const base64Credentials = authHeader.substring(6); // Remove 'Basic '
+    const credentials = atob(base64Credentials);
+    const [username, password] = credentials.split(':');
 
-  const validUsername = 'admin';
-  // Temporary hardcoded password - TODO: Move to env var
-  const validPassword = 'VeloReady2025!SecureDashboard#Ops';
+    const validUsername = 'admin';
+    const validPassword = 'VeloReady2025!SecureDashboard#Ops';
 
-  if (username === validUsername && password === validPassword) {
-    return; // Allow access
+    if (username === validUsername && password === validPassword) {
+      // Authentication successful - pass through to the actual page
+      return;
+    }
+  } catch (error) {
+    // Invalid base64 or malformed header
   }
 
   return new Response('Invalid credentials', {
