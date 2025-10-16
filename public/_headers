@@ -1,0 +1,65 @@
+# VeloReady Website Headers Configuration
+# Protects /ops/ dashboard while keeping app functionality public
+
+# ============================================
+# PUBLIC PATHS (No authentication required)
+# ============================================
+
+# Apple Universal Links (required for iOS app)
+/.well-known/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+# Apple App Site Association (required for iOS app)
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+# OAuth callbacks (required for Strava authentication)
+/oauth/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+# OAuth callbacks - alternative path
+/auth/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+# API endpoints (required for app functionality)
+/api/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+# AI endpoints
+/ai-brief
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+/ai-ride-summary
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+# Webhooks
+/webhooks/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+# ============================================
+# PROTECTED DASHBOARD (Authentication required)
+# ============================================
+
+# Dashboard at /ops/* - requires username and password
+/ops/*
+  Basic-Auth: admin:${DASHBOARD_PASSWORD}
+  X-Robots-Tag: noindex
+  Cache-Control: no-cache, no-store, must-revalidate
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Dashboard at /dashboard/* - also protected
+/dashboard/*
+  Basic-Auth: admin:${DASHBOARD_PASSWORD}
+  X-Robots-Tag: noindex
+  Cache-Control: no-cache, no-store, must-revalidate
