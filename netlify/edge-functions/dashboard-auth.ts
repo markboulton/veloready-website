@@ -24,8 +24,8 @@ export default async (request: Request, context: any) => {
   const [username, password] = credentials.split(':');
 
   const validUsername = 'admin';
-  // Get password from environment - Netlify Edge Functions use Deno.env
-  const validPassword = Deno.env.get('DASHBOARD_PASSWORD');
+  // Temporary hardcoded password - TODO: Move to env var
+  const validPassword = 'VeloReady2025!SecureDashboard#Ops';
 
   if (username === validUsername && password === validPassword) {
     return; // Allow access
