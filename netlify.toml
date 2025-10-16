@@ -130,8 +130,14 @@
   cron = "0 3 * * *"
 
 # ===== OPS DASHBOARD =====
+# Dashboard is password-protected via _headers file
 
 [[redirects]]
   from = "/ops"
   to   = "/dashboard/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ops/*"
+  to   = "/dashboard/:splat"
   status = 200
