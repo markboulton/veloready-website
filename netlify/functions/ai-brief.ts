@@ -48,8 +48,10 @@ const CONTEXT_PREFIX = [
 /** ----- Decision logic summary (shown to model) ----- */
 const DECISION_RULES = [
   "Rules:",
-  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2%) -> de-load <= 55 TSS (Z1-Z2).",
-  "If Recovery >= 66% AND TSB >= 0 -> productive session at top of target.",
+  "CRITICAL: If user has already completed training today, acknowledge it and focus on recovery/nutrition advice instead of prescribing more work.",
+  "If RHR is elevated but user just finished a workout (< 6 hours ago), this is NORMAL post-exercise response, not a red flag. Don't prescribe de-load based solely on elevated RHR after recent training.",
+  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2% AND no recent workout) -> de-load <= 55 TSS (Z1-Z2).",
+  "If Recovery >= 66% AND TSB >= 0 AND no training done yet -> productive session at top of target.",
   "If signals mixed -> cap around midpoint of target and emphasise fueling or recovery habit.",
   "If time-crunched (explicit or implied), recommend 45-60 min format: Sweet Spot, Tempo, or high-cadence endurance.",
   "Keep output concise and relatable, like a coach texting their rider before a session."
@@ -101,6 +103,10 @@ const FEW_SHOTS: FewShot[] = [
   {
     user: "Recovery: 72% | Sleep Delta: +1% | HRV Delta: +3% | RHR Delta: -1% | TSB: 0 | Target TSS: 65-85 | Plan: Group ride",
     assistant: "Solid recovery, neutral TSB. Expect 75-85 TSS from the ride; control surges early, fuel 60 g/h, and stretch after."
+  },
+  {
+    user: "Recovery: 63% | Sleep Delta: -1% | HRV Delta: +2% | RHR Delta: +3% | TSB: +11 | Target TSS: 60-80 | Today's TSS: 52\n✓ COMPLETED TODAY: 2 x 10 (48min, 52 TSS). User has already trained - focus on recovery advice, not prescribing more work. Elevated RHR is normal post-exercise.",
+    assistant: "Solid 52 TSS session done. RHR elevated post-ride is normal. Focus on protein + carbs within 90 min and aim for 8h sleep to consolidate gains."
   }
 ];
 
@@ -120,12 +126,13 @@ function isoDateUTC() {
 
 /** Build the live user content = context + rules + metrics line */
 function buildUserContent(payload: any) {
-  const { recovery, sleepDelta, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan } = payload ?? {};
+  const { recovery, sleepDelta, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan, completedActivities, todayTSS } = payload ?? {};
   
   // Check for missing data
   const hasSleepData = sleepDelta !== null && sleepDelta !== undefined;
   const hasHRVData = hrvDelta !== null && hrvDelta !== undefined;
   const hasRHRData = rhrDelta !== null && rhrDelta !== undefined;
+  const hasCompletedTraining = completedActivities && completedActivities.length > 0;
   
   // Build metrics line with "N/A" for missing data
   const metricsLine = [
@@ -135,16 +142,23 @@ function buildUserContent(payload: any) {
     hasRHRData ? `RHR Delta: ${Math.round(rhrDelta * 100)}%` : `RHR Delta: N/A`,
     `TSB: ${tsb}`,
     `Target TSS: ${tssLow}-${tssHigh}`,
+    hasCompletedTraining ? `Today's TSS: ${todayTSS || 0}` : null,
     plan ? `Plan: ${plan}` : null
   ].filter(Boolean).join(" | ");
   
-  // Add warning if critical data is missing
-  let warning = "";
-  if (!hasSleepData) {
-    warning = "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
+  // Add context about completed training
+  let warnings = "";
+  if (hasCompletedTraining) {
+    const activities = completedActivities.map((a: any) => `${a.name} (${a.duration}min, ${a.tss || '?'} TSS)`).join(", ");
+    warnings += `\n✓ COMPLETED TODAY: ${activities}. User has already trained - focus on recovery advice, not prescribing more work. Elevated RHR is normal post-exercise.`;
   }
   
-  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}${warning}`;
+  // Add warning if critical data is missing
+  if (!hasSleepData) {
+    warnings += "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
+  }
+  
+  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}${warnings}`;
 }
 
 /** Compose messages with system + few-shots + live user content */
@@ -219,10 +233,11 @@ export const handler: Handler = async (event, _context) => {
 
     const ttl = Number(process.env.CACHE_TTL_SECONDS || 86400);
     
-    // Check if sleep data is missing - if so, use a different cache key to avoid stale responses
-    const { sleepDelta, hrvDelta, rhrDelta } = payload ?? {};
+    // Check if sleep data is missing or if activities completed - different cache keys to avoid stale responses
+    const { sleepDelta, hrvDelta, rhrDelta, completedActivities } = payload ?? {};
     const hasMissingData = sleepDelta === null || sleepDelta === undefined;
-    const cacheKeySuffix = hasMissingData ? "no-sleep" : "full";
+    const hasCompletedTraining = completedActivities && completedActivities.length > 0;
+    const cacheKeySuffix = hasCompletedTraining ? "post-training" : hasMissingData ? "no-sleep" : "full";
     const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${cacheKeySuffix}`;
 
     try {
