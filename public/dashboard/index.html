@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VeloReady Ops Dashboard - ENHANCED v2</title>
+  <title>VeloReady Ops Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -12,8 +12,9 @@
       color: #e2e8f0;
       padding: 2rem;
     }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { max-width: 1400px; margin: 0 auto; }
     h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #f1f5f9; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 1rem; color: #f1f5f9; }
     .subtitle { color: #94a3b8; margin-bottom: 2rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
     .card {
@@ -87,6 +88,9 @@
     }
     .badge-webhook { background: #1e40af; color: #dbeafe; }
     .badge-user { background: #7c2d12; color: #fed7aa; }
+    .badge-success { background: #14532d; color: #bbf7d0; }
+    .badge-warning { background: #78350f; color: #fef3c7; }
+    .badge-error { background: #7f1d1d; color: #fecaca; }
     .loading {
       text-align: center;
       padding: 3rem;
@@ -117,19 +121,33 @@
       font-size: 0.75rem;
       margin-top: 2rem;
     }
+    .info-box {
+      background: #1e3a5f;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 4px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: #64748b;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🚴 VeloReady Ops Dashboard</h1>
-    <p class="subtitle">System metrics and monitoring - ENHANCED VERSION ✨</p>
+    <p class="subtitle">Real-time system metrics and monitoring</p>
     
-    <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh</button>
+    <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh Now</button>
     
     <div id="error" class="error" style="display: none;"></div>
     <div id="loading" class="loading">Loading metrics...</div>
     <div id="dashboard" style="display: none;">
       
+      <!-- Summary Cards -->
       <div class="grid">
         <div class="card">
           <div class="card-title">Athletes</div>
@@ -153,16 +171,14 @@
           <div class="metric-label">Total stored</div>
           <div class="sub-metrics">
             <div class="sub-metric">
-              <div class="sub-metric-value" id="activities-24h">—</div>
+              <div class="sub-metric-value" id="activities-hour">—</div>
+              <div class="sub-metric-label">Last hour</div>
+            </div>
+            <div class="sub-metric">
+              <div class="sub-metric-value" id="activities-day">—</div>
               <div class="sub-metric-label">Last 24h</div>
             </div>
           </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Deauthorizations</div>
-          <div class="metric" id="deauths-7d">—</div>
-          <div class="metric-label">Last 7 days</div>
         </div>
 
         <div class="card">
@@ -180,10 +196,68 @@
             </div>
           </div>
         </div>
+
+        <div class="card">
+          <div class="card-title">Deauthorizations</div>
+          <div class="metric" id="deauths-7d">—</div>
+          <div class="metric-label">Last 7 days</div>
+        </div>
       </div>
 
+      <!-- Queue Processing Info -->
+      <h2>⚙️ Queue Processing</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Live Queue (Webhooks)</div>
+          <div id="live-queue-info"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Backfill Queue</div>
+          <div id="backfill-queue-info"></div>
+        </div>
+      </div>
+
+      <!-- Authenticated Users -->
+      <h2>👥 Authenticated Users</h2>
       <div class="card">
-        <div class="card-title">Recent Deauthorizations</div>
+        <div class="card-title">Connected Athletes</div>
+        <div id="athletes-list"></div>
+      </div>
+
+      <!-- Recent Activity Syncs -->
+      <h2>📊 Recent Activity Syncs</h2>
+      <div class="card">
+        <div class="card-title">Last 20 Synced Activities</div>
+        <div id="activity-syncs"></div>
+      </div>
+
+      <!-- Recent Webhooks -->
+      <h2>📡 Recent Webhook Events</h2>
+      <div class="card">
+        <div class="card-title">Last 20 Strava Webhooks</div>
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Athlete ID</th>
+              <th>Event</th>
+            </tr>
+          </thead>
+          <tbody id="webhook-log">
+            <tr><td colspan="2" style="text-align: center; color: #64748b;">No recent webhooks</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Recent Cleanup Events -->
+      <h2>🧹 Data Cleanup (Strava Compliance)</h2>
+      <div class="card">
+        <div class="card-title">Stream Cleanup Events (7-day rule)</div>
+        <div id="cleanup-log"></div>
+      </div>
+
+      <!-- Recent Deauths -->
+      <h2>🔓 Recent Deauthorizations</h2>
+      <div class="card">
         <table class="log-table">
           <thead>
             <tr>
@@ -197,8 +271,9 @@
         </table>
       </div>
 
+      <!-- Activity Visibility -->
+      <h2>🔒 Activity Visibility Breakdown</h2>
       <div class="card">
-        <div class="card-title">Activity Visibility Breakdown</div>
         <div id="visibility-breakdown"></div>
       </div>
 
@@ -222,12 +297,13 @@
         
         const data = await response.json();
         
-        // Update metrics
+        // Update summary metrics
         document.getElementById('athletes-total').textContent = data.athletes.total.toLocaleString();
         document.getElementById('tokens-valid').textContent = data.athletes.tokens.valid.toLocaleString();
         document.getElementById('tokens-expired').textContent = data.athletes.tokens.expired.toLocaleString();
         document.getElementById('activities-total').textContent = data.activities.total.toLocaleString();
-        document.getElementById('activities-24h').textContent = data.activities.last_24h.toLocaleString();
+        document.getElementById('activities-hour').textContent = (data.activities.sync_stats?.last_hour || 0).toLocaleString();
+        document.getElementById('activities-day').textContent = (data.activities.sync_stats?.last_day || 0).toLocaleString();
         document.getElementById('deauths-7d').textContent = data.deauths.last_7_days.toLocaleString();
         
         // Update queue metrics
@@ -235,6 +311,135 @@
         document.getElementById('queue-total').textContent = queueTotal.toLocaleString();
         document.getElementById('queue-live').textContent = (data.queues?.live || 0).toLocaleString();
         document.getElementById('queue-backfill').textContent = (data.queues?.backfill || 0).toLocaleString();
+        
+        // Update queue processing info
+        const liveInfo = data.queues?.processing_info?.live_queue;
+        const backfillInfo = data.queues?.processing_info?.backfill_queue;
+        
+        if (liveInfo) {
+          document.getElementById('live-queue-info').innerHTML = `
+            <p style="margin-bottom: 0.5rem;"><strong>${liveInfo.description}</strong></p>
+            <p style="color: #94a3b8; font-size: 0.875rem;">Processing time: ${liveInfo.typical_processing_time}</p>
+            <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.5rem;">Current depth: <strong>${liveInfo.current_depth}</strong> jobs</p>
+            ${liveInfo.current_depth > 0 ? '<div class="info-box" style="margin-top: 1rem;">Jobs are being processed in real-time as webhooks arrive from Strava.</div>' : '<p style="color: #64748b; margin-top: 1rem; font-style: italic;">Queue is empty - no pending jobs</p>'}
+          `;
+        }
+        
+        if (backfillInfo) {
+          document.getElementById('backfill-queue-info').innerHTML = `
+            <p style="margin-bottom: 0.5rem;"><strong>${backfillInfo.description}</strong></p>
+            <p style="color: #94a3b8; font-size: 0.875rem;">Processing time: ${backfillInfo.typical_processing_time}</p>
+            <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.5rem;">Current depth: <strong>${backfillInfo.current_depth}</strong> jobs</p>
+            ${backfillInfo.current_depth > 0 ? '<div class="info-box" style="margin-top: 1rem;">Backfill jobs are processed by scheduled functions every 5 minutes.</div>' : '<p style="color: #64748b; margin-top: 1rem; font-style: italic;">Queue is empty - no pending jobs</p>'}
+          `;
+        }
+        
+        // Update athletes list
+        const athletesList = document.getElementById('athletes-list');
+        if (data.athletes.list && data.athletes.list.length > 0) {
+          athletesList.innerHTML = `
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Athlete ID</th>
+                  <th>Token Status</th>
+                  <th>Connected</th>
+                  <th>Last Updated</th>
+                  <th>Scopes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.athletes.list.map(a => `
+                  <tr>
+                    <td><strong>${a.id}</strong></td>
+                    <td>
+                      <span class="badge ${a.token_expired ? 'badge-error' : 'badge-success'}">
+                        ${a.token_expired ? 'Expired' : 'Valid'}
+                      </span>
+                    </td>
+                    <td>${new Date(a.connected_at).toLocaleString()}<br><small style="color: #64748b;">${a.hours_since_connection}h ago</small></td>
+                    <td>${new Date(a.last_updated).toLocaleString()}</td>
+                    <td><small style="color: #94a3b8;">${(a.scopes || []).join(', ')}</small></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          athletesList.innerHTML = '<div class="empty-state">No authenticated users. All athletes have been disconnected.</div>';
+        }
+        
+        // Update activity syncs
+        const activitySyncs = document.getElementById('activity-syncs');
+        if (data.activities.recent_syncs && data.activities.recent_syncs.length > 0) {
+          activitySyncs.innerHTML = `
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Activity ID</th>
+                  <th>Athlete</th>
+                  <th>Type</th>
+                  <th>Start Date</th>
+                  <th>Privacy</th>
+                  <th>Synced At</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.activities.recent_syncs.map(a => `
+                  <tr>
+                    <td><strong>${a.id}</strong></td>
+                    <td>${a.athlete_id}</td>
+                    <td>${a.type || 'Unknown'}</td>
+                    <td>${new Date(a.start_date).toLocaleString()}</td>
+                    <td>
+                      <span class="badge ${a.private ? 'badge-error' : 'badge-success'}">
+                        ${a.visibility || (a.private ? 'Private' : 'Public')}
+                      </span>
+                    </td>
+                    <td>${new Date(a.synced_at).toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          activitySyncs.innerHTML = '<div class="empty-state">No activities synced yet. Activities will appear here when athletes connect and sync their Strava data.</div>';
+        }
+        
+        // Update cleanup log
+        const cleanupDiv = document.getElementById('cleanup-log');
+        if (data.cleanup && data.cleanup.recent && data.cleanup.recent.length > 0) {
+          cleanupDiv.innerHTML = data.cleanup.recent.map(c => `
+            <div style="padding: 0.75rem; border-bottom: 1px solid #334155; font-size: 0.875rem;">
+              <span class="badge badge-success">Completed</span>
+              ${c.note}
+            </div>
+          `).join('');
+        } else {
+          cleanupDiv.innerHTML = '<div class="empty-state">No cleanup events yet. Cleanup runs daily at 3am to remove streams older than 7 days (Strava API compliance).</div>';
+        }
+        
+        // Update webhook log
+        const webhookBody = document.getElementById('webhook-log');
+        if (data.webhooks && data.webhooks.recent && data.webhooks.recent.length > 0) {
+          webhookBody.innerHTML = data.webhooks.recent.map(w => {
+            const [objectType, aspectType, objectId] = w.event.split(':');
+            return `
+              <tr>
+                <td>${w.athlete_id}</td>
+                <td>
+                  <span class="badge badge-${aspectType === 'create' ? 'success' : aspectType === 'delete' ? 'error' : 'warning'}">
+                    ${objectType}
+                  </span>
+                  ${aspectType}
+                  ${objectId !== 'n/a' ? `<small style="color: #64748b;"> (${objectId})</small>` : ''}
+                </td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          webhookBody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #64748b;">No recent webhooks</td></tr>';
+        }
         
         // Update deauth log
         const logBody = document.getElementById('deauth-log');
@@ -252,12 +457,16 @@
         // Update visibility breakdown
         const visDiv = document.getElementById('visibility-breakdown');
         const vis = data.activities.by_visibility;
-        visDiv.innerHTML = Object.entries(vis).map(([key, count]) => `
-          <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155;">
-            <span style="text-transform: capitalize;">${key}</span>
-            <span style="font-weight: 600;">${count.toLocaleString()}</span>
-          </div>
-        `).join('');
+        if (Object.keys(vis).length > 0) {
+          visDiv.innerHTML = Object.entries(vis).map(([key, count]) => `
+            <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155;">
+              <span style="text-transform: capitalize;">${key}</span>
+              <span style="font-weight: 600;">${count.toLocaleString()}</span>
+            </div>
+          `).join('');
+        } else {
+          visDiv.innerHTML = '<div class="empty-state">No activities to display visibility breakdown.</div>';
+        }
         
         // Update timestamp
         document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
