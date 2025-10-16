@@ -142,10 +142,10 @@
 
 [[redirects]]
   from = "/ops"
-  to   = "/dashboard-enhanced.html"
+  to   = "/dashboard/index.html"
   status = 200
 
 [[redirects]]
   from = "/ops/*"
-  to   = "/dashboard-enhanced.html"
+  to   = "/dashboard/:splat"
   status = 200

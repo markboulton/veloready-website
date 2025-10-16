@@ -124,10 +124,7 @@
     <h1>🚴 VeloReady Ops Dashboard</h1>
     <p class="subtitle">System metrics and monitoring</p>
     
-    <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
-      <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh Metrics</button>
-      <button class="refresh-btn" onclick="drainQueue()" style="background: #f59e0b;">⚡ Drain Queue Now</button>
-    </div>
+    <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh</button>
     
     <div id="error" class="error" style="display: none;"></div>
     <div id="loading" class="loading">Loading metrics...</div>
@@ -272,27 +269,6 @@
         error.textContent = `Error loading metrics: ${err.message}`;
         error.style.display = 'block';
         loading.style.display = 'none';
-      }
-    }
-
-    async function drainQueue() {
-      const btn = event.target;
-      btn.disabled = true;
-      btn.textContent = '⏳ Draining...';
-      
-      try {
-        const response = await fetch('/ops/drain-queue');
-        const result = await response.json();
-        
-        alert(`Queue drain completed!\n\nProcessed: ${result.processed || 0} jobs\nResults: ${JSON.stringify(result.results || [], null, 2)}`);
-        
-        // Refresh metrics after drain
-        await loadMetrics();
-      } catch (err) {
-        alert(`Error: ${err.message}`);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '⚡ Drain Queue Now';
       }
     }
 
