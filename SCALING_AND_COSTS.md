@@ -396,23 +396,27 @@ This is **incredibly cheap** because:
 
 **Status:** ✅ **COMPLETE** (October 2025)
 
+**Approach:** **On-Demand Stream Fetching** with aggressive caching
+
 **Changes Made:**
 1. ✅ **24-hour stream cache** (was 1 hour)
    - 96% reduction in stream API calls
    - File: `netlify/functions/api-request-streams.ts`
-   - Impact: 600 calls/day → 25 calls/day
+   - Impact: Only ~50% of activities viewed = 300 stream calls/day → 25/day
 
-2. ✅ **Batch processing queue** (6-hour windows)
-   - Spreads webhook processing evenly
-   - Files: `netlify/functions/webhooks-strava.ts`, `netlify/functions/process-queue.ts`
-   - Impact: No rate limit spikes
+2. ✅ **Immediate webhook processing** (on-demand approach)
+   - Activities sync within seconds of Strava upload
+   - Fetch summary only (not streams)
+   - Streams fetched only when user opens detail view
+   - Files: `netlify/functions/webhooks-strava.ts`, `sync-activity.ts`
 
-3. ✅ **API monitoring alerts** 
+3. ✅ **API monitoring & alerts** 
    - Dashboard shows real-time API usage
    - Alerts at 80% and 95% of daily limit
-   - File: `dashboard/ops.html`
+   - File: `dashboard/index.html`
+   - Tracks: Daily calls, 15-min windows, endpoint breakdown
 
-**New Capacity:** ~5,000 users (5x improvement)
+**New Capacity:** ~1,600 users (immediate sync, Strava compliant)
 
 ---
 

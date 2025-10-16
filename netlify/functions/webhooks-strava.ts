@@ -1,7 +1,6 @@
 import { HandlerEvent } from "@netlify/functions";
 import { enqueueLive } from "../lib/queue";
 import { withDb } from "../lib/db";
-import { rpush } from "../lib/redis";
 
 export async function handler(event: HandlerEvent) {
   // Verification handshake
@@ -33,16 +32,16 @@ export async function handler(event: HandlerEvent) {
   }
 
   if (body.object_type === "activity" && body.aspect_type === "create") {
-    // Use batch queue for rate limit management (processed every 6 hours)
-    await rpush("queue:batch", { kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+    // Process immediately via live queue (on-demand approach)
+    await enqueueLive({ kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
   } else if (body.object_type === "activity" && body.aspect_type === "update") {
     // only re-fetch if meaningful fields changed
     const changed = body.updates || {};
     if (changed.title || changed.type || changed.visibility || changed.private) {
-      await rpush("queue:batch", { kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+      await enqueueLive({ kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
     }
   } else if (body.aspect_type === "delete") {
-    await rpush("queue:batch", { kind: "delete-activity", athlete_id: body.owner_id, activity_id: body.object_id });
+    await enqueueLive({ kind: "delete-activity", athlete_id: body.owner_id, activity_id: body.object_id });
   } else if (body.object_type === "athlete" && body.updates?.authorized === "false") {
     // Webhook-driven deauth: immediate cleanup
     const stravaId = String(body.owner_id);

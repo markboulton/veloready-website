@@ -200,15 +200,11 @@
           <div class="sub-metrics">
             <div class="sub-metric">
               <div class="sub-metric-value" id="queue-live">—</div>
-              <div class="sub-metric-label">Live</div>
+              <div class="sub-metric-label">Live (webhooks)</div>
             </div>
             <div class="sub-metric">
               <div class="sub-metric-value" id="queue-backfill">—</div>
               <div class="sub-metric-label">Backfill</div>
-            </div>
-            <div class="sub-metric">
-              <div class="sub-metric-value" id="queue-batch">—</div>
-              <div class="sub-metric-label">Batch</div>
             </div>
           </div>
         </div>
@@ -318,11 +314,10 @@
         document.getElementById('deauths-7d').textContent = data.deauths.last_7_days.toLocaleString();
         
         // Update queue metrics
-        const queueTotal = (data.queues?.live || 0) + (data.queues?.backfill || 0) + (data.queues?.batch || 0);
+        const queueTotal = (data.queues?.live || 0) + (data.queues?.backfill || 0);
         document.getElementById('queue-total').textContent = queueTotal.toLocaleString();
         document.getElementById('queue-live').textContent = (data.queues?.live || 0).toLocaleString();
         document.getElementById('queue-backfill').textContent = (data.queues?.backfill || 0).toLocaleString();
-        document.getElementById('queue-batch').textContent = (data.queues?.batch || 0).toLocaleString();
         
         // Update API usage metrics
         const apiAlert = document.getElementById('api-alert');
