@@ -1,6 +1,7 @@
 import { HandlerEvent } from "@netlify/functions";
 import { withDb } from "../lib/db";
 import { ENV } from "../lib/env";
+import { trackStravaAPICall } from "../lib/apiTracking";
 
 /**
  * On-demand Strava Streams API
@@ -79,6 +80,9 @@ export async function handler(event: HandlerEvent) {
     // TODO: Check if token is expired and refresh if needed
     // For now, assume token is valid
 
+    // Track API call for rate limit monitoring
+    await trackStravaAPICall("streams");
+    
     // Fetch streams from Strava API
     const streamsUrl = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=${keys}&key_by_type=true`;
     const response = await fetch(streamsUrl, {
@@ -104,7 +108,7 @@ export async function handler(event: HandlerEvent) {
       statusCode: 200,
       headers: { 
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=3600" // Cache for 1 hour
+        "Cache-Control": "public, max-age=86400" // Cache for 24 hours (Strava compliant, <7 days)
       },
       body: JSON.stringify({
         ok: 1,

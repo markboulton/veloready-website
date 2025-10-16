@@ -1,7 +1,33 @@
 import { HandlerEvent } from "@netlify/functions";
 import { withDb } from "../lib/db";
 import { depth, Q } from "../lib/queue";
-import { get } from "../lib/redis";
+import { get, llen } from "../lib/redis";
+import { getAPIUsage, getEndpointBreakdown } from "../lib/apiTracking";
+
+/**
+ * Calculate next batch processing time (every 6 hours: 00:00, 06:00, 12:00, 18:00 UTC)
+ */
+function getNextBatchTime(): string {
+  const now = new Date();
+  const hour = now.getUTCHours();
+  const nextHours = [0, 6, 12, 18];
+  
+  // Find next processing hour
+  let nextHour = nextHours.find(h => h > hour);
+  if (!nextHour) {
+    nextHour = 0; // Next is tomorrow at 00:00
+  }
+  
+  const next = new Date(now);
+  next.setUTCHours(nextHour, 0, 0, 0);
+  
+  // If next is tomorrow
+  if (nextHour === 0 && hour >= 18) {
+    next.setUTCDate(next.getUTCDate() + 1);
+  }
+  
+  return next.toISOString();
+}
 
 /**
  * Operations Metrics JSON API
@@ -160,12 +186,28 @@ export async function handler(event: HandlerEvent) {
       };
     });
 
+    // Fetch API usage stats
+    let apiUsage: any = null;
+    try {
+      apiUsage = await getAPIUsage();
+      const endpointBreakdown = await getEndpointBreakdown();
+      if (apiUsage) {
+        apiUsage.endpoints = endpointBreakdown;
+      }
+    } catch (error) {
+      console.error("[Ops Metrics] Failed to fetch API usage:", error);
+    }
+    
     // Fetch queue depth and job details from Upstash Redis
-    let queueMetrics: any = { live: 0, backfill: 0, jobs: [] };
+    let queueMetrics: any = { live: 0, backfill: 0, batch: 0, jobs: [] };
     try {
       const depthData = await depth();
       queueMetrics.live = depthData.live;
       queueMetrics.backfill = depthData.backfill;
+      
+      // Get batch queue depth
+      const batchDepth = await llen("queue:batch");
+      queueMetrics.batch = batchDepth;
       
       // Fetch pending jobs from live queue (peek without removing)
       // Note: This is a simplified version - in production you'd want to peek at the queue
@@ -185,6 +227,13 @@ export async function handler(event: HandlerEvent) {
           description: "Slower reconciliation jobs, bulk syncs",
           typical_processing_time: "30-60 seconds",
           current_depth: depthData.backfill
+        },
+        batch_queue: {
+          name: "Batch (Rate Limited)",
+          description: "Webhook events processed in 6-hour batches to prevent rate limits",
+          typical_processing_time: "Processed every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)",
+          current_depth: batchDepth,
+          next_processing: getNextBatchTime()
         }
       };
     } catch (error) {
@@ -200,7 +249,8 @@ export async function handler(event: HandlerEvent) {
       },
       body: JSON.stringify({
         ...metrics,
-        queues: queueMetrics
+        queues: queueMetrics,
+        api_usage: apiUsage
       })
     };
 
