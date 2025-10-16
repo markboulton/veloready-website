@@ -6,6 +6,14 @@
   node_bundler = "esbuild"
   external_node_modules = ["pg"]
 
+[[edge_functions]]
+  function = "dashboard-auth"
+  path = "/ops/*"
+
+[[edge_functions]]
+  function = "dashboard-auth"
+  path = "/dashboard/*"
+
 [dev]
   framework = "#static"
 
