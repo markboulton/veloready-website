@@ -1,6 +1,4 @@
-import type { Context } from "https://edge.netlify.com";
-
-export default async (request: Request, context: Context) => {
+export default async (request: Request, context: any) => {
   const url = new URL(request.url);
   
   // Only protect /ops/ and /dashboard/ paths
@@ -26,7 +24,8 @@ export default async (request: Request, context: Context) => {
   const [username, password] = credentials.split(':');
 
   const validUsername = 'admin';
-  const validPassword = Netlify.env.get('DASHBOARD_PASSWORD');
+  // Get password from environment - Netlify Edge Functions use Deno.env
+  const validPassword = Deno.env.get('DASHBOARD_PASSWORD');
 
   if (username === validUsername && password === validPassword) {
     return; // Allow access
@@ -43,3 +42,6 @@ export default async (request: Request, context: Context) => {
 export const config = {
   path: ["/ops/*", "/dashboard/*"],
 };
+
+// Declare Deno global for TypeScript
+declare const Deno: any;
