@@ -46,23 +46,20 @@
   Cache-Control: no-cache
 
 # ============================================
-# PROTECTED DASHBOARD (Authentication via Edge Function)
+# PROTECTED DASHBOARD (Authentication required)
 # ============================================
-# Note: Authentication is handled by Edge Function (dashboard-auth.ts)
-# These headers apply AFTER authentication succeeds
 
-# Dashboard at /ops/* - security headers only
+# Dashboard at /ops/* - requires username and password
 /ops/*
+  Basic-Auth: admin:${DASHBOARD_PASSWORD}
   X-Robots-Tag: noindex
   Cache-Control: no-cache, no-store, must-revalidate
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
-# Dashboard at /dashboard/* - security headers only
+# Dashboard at /dashboard/* - also protected
 /dashboard/*
+  Basic-Auth: admin:${DASHBOARD_PASSWORD}
   X-Robots-Tag: noindex
   Cache-Control: no-cache, no-store, must-revalidate
-  X-Frame-Options: DENY
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin

@@ -2,7 +2,6 @@ import { HandlerEvent } from "@netlify/functions";
 import { withDb } from "../lib/db";
 import { depth, Q } from "../lib/queue";
 import { get } from "../lib/redis";
-import { getAPIUsage, getEndpointBreakdown } from "../lib/apiTracking";
 
 /**
  * Operations Metrics JSON API
@@ -161,18 +160,6 @@ export async function handler(event: HandlerEvent) {
       };
     });
 
-    // Fetch API usage stats
-    let apiUsage: any = null;
-    try {
-      apiUsage = await getAPIUsage();
-      const endpointBreakdown = await getEndpointBreakdown();
-      if (apiUsage) {
-        apiUsage.endpoints = endpointBreakdown;
-      }
-    } catch (error) {
-      console.error("[Ops Metrics] Failed to fetch API usage:", error);
-    }
-    
     // Fetch queue depth and job details from Upstash Redis
     let queueMetrics: any = { live: 0, backfill: 0, jobs: [] };
     try {
@@ -189,7 +176,7 @@ export async function handler(event: HandlerEvent) {
       queueMetrics.processing_info = {
         live_queue: {
           name: "Live (Webhooks)",
-          description: "Webhook-driven activity syncs, processed immediately (on-demand approach)",
+          description: "Webhook-driven activity syncs, processed immediately",
           typical_processing_time: "< 5 seconds",
           current_depth: depthData.live
         },
@@ -213,8 +200,7 @@ export async function handler(event: HandlerEvent) {
       },
       body: JSON.stringify({
         ...metrics,
-        queues: queueMetrics,
-        api_usage: apiUsage
+        queues: queueMetrics
       })
     };
 

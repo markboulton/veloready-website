@@ -6,14 +6,6 @@
   node_bundler = "esbuild"
   external_node_modules = ["pg"]
 
-[[edge_functions]]
-  function = "dashboard-auth"
-  path = "/ops/*"
-
-[[edge_functions]]
-  function = "dashboard-auth"
-  path = "/dashboard/*"
-
 [dev]
   framework = "#static"
 
@@ -138,14 +130,8 @@
   cron = "0 3 * * *"
 
 # ===== OPS DASHBOARD =====
-# Dashboard is password-protected via Edge Function
 
 [[redirects]]
   from = "/ops"
   to   = "/dashboard/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/ops/*"
-  to   = "/dashboard/:splat"
   status = 200

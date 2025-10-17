@@ -32,7 +32,6 @@ export async function handler(event: HandlerEvent) {
   }
 
   if (body.object_type === "activity" && body.aspect_type === "create") {
-    // Process immediately via live queue (on-demand approach)
     await enqueueLive({ kind: "sync-activity", athlete_id: body.owner_id, activity_id: body.object_id });
   } else if (body.object_type === "activity" && body.aspect_type === "update") {
     // only re-fetch if meaningful fields changed

@@ -48,11 +48,10 @@ const CONTEXT_PREFIX = [
 /** ----- Decision logic summary (shown to model) ----- */
 const DECISION_RULES = [
   "Rules:",
-  "CRITICAL: If user has already completed training today, acknowledge it and focus on recovery/nutrition advice instead of prescribing more work.",
-  "If RHR is elevated but user just finished a workout (< 6 hours ago), this is NORMAL post-exercise response, not a red flag. Don't prescribe de-load based solely on elevated RHR after recent training.",
-  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2% AND no recent workout) -> de-load <= 55 TSS (Z1-Z2).",
-  "If Recovery >= 66% AND TSB >= 0 AND no training done yet -> productive session at top of target.",
+  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2%) -> de-load <= 55 TSS (Z1-Z2).",
+  "If Recovery >= 66% AND TSB >= 0 -> productive session at top of target.",
   "If signals mixed -> cap around midpoint of target and emphasise fueling or recovery habit.",
+  "Sleep Score interpretation: 85-100 = excellent, 70-84 = good, 60-69 = fair, <60 = poor. A score of 85+ is strong recovery even if duration is slightly below baseline.",
   "If time-crunched (explicit or implied), recommend 45-60 min format: Sweet Spot, Tempo, or high-cadence endurance.",
   "Keep output concise and relatable, like a coach texting their rider before a session."
 ].join(" ");
@@ -105,8 +104,8 @@ const FEW_SHOTS: FewShot[] = [
     assistant: "Solid recovery, neutral TSB. Expect 75-85 TSS from the ride; control surges early, fuel 60 g/h, and stretch after."
   },
   {
-    user: "Recovery: 63% | Sleep Delta: -1% | HRV Delta: +2% | RHR Delta: +3% | TSB: +11 | Target TSS: 60-80 | Today's TSS: 52\n✓ COMPLETED TODAY: 2 x 10 (48min, 52 TSS). User has already trained - focus on recovery advice, not prescribing more work. Elevated RHR is normal post-exercise.",
-    assistant: "Solid 52 TSS session done. RHR elevated post-ride is normal. Focus on protein + carbs within 90 min and aim for 8h sleep to consolidate gains."
+    user: "Recovery: 78% | Sleep: 91/100 | HRV Delta: +2% | RHR Delta: 0% | TSB: +3 | Target TSS: 70-90 | Plan: none",
+    assistant: "Great recovery score with excellent sleep quality (91/100). Ready for 85-90 TSS: Sweet Spot or Tempo intervals. Fuel well and keep intensity controlled."
   }
 ];
 
@@ -126,39 +125,42 @@ function isoDateUTC() {
 
 /** Build the live user content = context + rules + metrics line */
 function buildUserContent(payload: any) {
-  const { recovery, sleepDelta, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan, completedActivities, todayTSS } = payload ?? {};
+  const { recovery, sleepDelta, sleepScore, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan } = payload ?? {};
   
   // Check for missing data
-  const hasSleepData = sleepDelta !== null && sleepDelta !== undefined;
+  const hasSleepScore = sleepScore !== null && sleepScore !== undefined;
+  const hasSleepDelta = sleepDelta !== null && sleepDelta !== undefined;
   const hasHRVData = hrvDelta !== null && hrvDelta !== undefined;
   const hasRHRData = rhrDelta !== null && rhrDelta !== undefined;
-  const hasCompletedTraining = completedActivities && completedActivities.length > 0;
+  
+  // Build sleep metric: prefer comprehensive score over delta
+  let sleepMetric: string;
+  if (hasSleepScore) {
+    sleepMetric = `Sleep: ${sleepScore}/100`;
+  } else if (hasSleepDelta) {
+    sleepMetric = `Sleep Delta: ${sleepDelta >= 0 ? '+' : ''}${sleepDelta.toFixed(1)}h`;
+  } else {
+    sleepMetric = `Sleep: N/A`;
+  }
   
   // Build metrics line with "N/A" for missing data
   const metricsLine = [
     `Recovery: ${recovery}%`,
-    hasSleepData ? `Sleep Delta: ${Math.round(sleepDelta * 100)}%` : `Sleep Delta: N/A`,
-    hasHRVData ? `HRV Delta: ${Math.round(hrvDelta * 100)}%` : `HRV Delta: N/A`,
-    hasRHRData ? `RHR Delta: ${Math.round(rhrDelta * 100)}%` : `RHR Delta: N/A`,
-    `TSB: ${tsb}`,
+    sleepMetric,
+    hasHRVData ? `HRV Delta: ${hrvDelta >= 0 ? '+' : ''}${Math.round(hrvDelta)}%` : `HRV Delta: N/A`,
+    hasRHRData ? `RHR Delta: ${rhrDelta >= 0 ? '+' : ''}${Math.round(rhrDelta)}%` : `RHR Delta: N/A`,
+    `TSB: ${tsb >= 0 ? '+' : ''}${tsb}`,
     `Target TSS: ${tssLow}-${tssHigh}`,
-    hasCompletedTraining ? `Today's TSS: ${todayTSS || 0}` : null,
     plan ? `Plan: ${plan}` : null
   ].filter(Boolean).join(" | ");
   
-  // Add context about completed training
-  let warnings = "";
-  if (hasCompletedTraining) {
-    const activities = completedActivities.map((a: any) => `${a.name} (${a.duration}min, ${a.tss || '?'} TSS)`).join(", ");
-    warnings += `\n✓ COMPLETED TODAY: ${activities}. User has already trained - focus on recovery advice, not prescribing more work. Elevated RHR is normal post-exercise.`;
-  }
-  
   // Add warning if critical data is missing
-  if (!hasSleepData) {
-    warnings += "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
+  let warning = "";
+  if (!hasSleepScore && !hasSleepDelta) {
+    warning = "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
   }
   
-  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}${warnings}`;
+  return `${CONTEXT_PREFIX}\n${DECISION_RULES}\n${metricsLine}${warning}`;
 }
 
 /** Compose messages with system + few-shots + live user content */
@@ -233,11 +235,10 @@ export const handler: Handler = async (event, _context) => {
 
     const ttl = Number(process.env.CACHE_TTL_SECONDS || 86400);
     
-    // Check if sleep data is missing or if activities completed - different cache keys to avoid stale responses
-    const { sleepDelta, hrvDelta, rhrDelta, completedActivities } = payload ?? {};
-    const hasMissingData = sleepDelta === null || sleepDelta === undefined;
-    const hasCompletedTraining = completedActivities && completedActivities.length > 0;
-    const cacheKeySuffix = hasCompletedTraining ? "post-training" : hasMissingData ? "no-sleep" : "full";
+    // Check if sleep data is missing - if so, use a different cache key to avoid stale responses
+    const { sleepScore, sleepDelta } = payload ?? {};
+    const hasMissingData = (sleepScore === null || sleepScore === undefined) && (sleepDelta === null || sleepDelta === undefined);
+    const cacheKeySuffix = hasMissingData ? "no-sleep" : "full";
     const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${cacheKeySuffix}`;
 
     try {

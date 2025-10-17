@@ -117,37 +117,12 @@
       font-size: 0.75rem;
       margin-top: 2rem;
     }
-    .alert-warning {
-      border: 2px solid #f59e0b;
-      background: rgba(245, 158, 11, 0.1);
-    }
-    .alert-critical {
-      border: 2px solid #dc2626;
-      background: rgba(220, 38, 38, 0.1);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-    .alert-banner {
-      background: #dc2626;
-      color: white;
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      font-weight: 600;
-      display: none;
-    }
-    .alert-banner.show { display: block; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🚴 VeloReady Ops Dashboard</h1>
     <p class="subtitle">System metrics and monitoring</p>
-    
-    <div id="api-alert" class="alert-banner"></div>
     
     <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
       <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh Metrics</button>
@@ -210,61 +185,6 @@
         </div>
       </div>
 
-      <!-- API RATE LIMIT MONITORING -->
-      <div class="grid">
-        <div class="card" id="api-daily-card">
-          <div class="card-title">🔥 Strava API (Daily Limit)</div>
-          <div class="metric" id="api-daily-count">—</div>
-          <div class="metric-label" id="api-daily-label">of 1,000 calls today</div>
-          <div class="sub-metrics">
-            <div class="sub-metric">
-              <div class="sub-metric-value" id="api-daily-percent">—</div>
-              <div class="sub-metric-label">Usage %</div>
-            </div>
-            <div class="sub-metric">
-              <div class="sub-metric-value" id="api-daily-remaining">—</div>
-              <div class="sub-metric-label">Remaining</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="api-15min-card">
-          <div class="card-title">⚡ Strava API (15-Min Window)</div>
-          <div class="metric" id="api-15min-count">—</div>
-          <div class="metric-label">of 100 calls in window</div>
-          <div class="sub-metrics">
-            <div class="sub-metric">
-              <div class="sub-metric-value" id="api-15min-percent">—</div>
-              <div class="sub-metric-label">Usage %</div>
-            </div>
-            <div class="sub-metric">
-              <div class="sub-metric-value" id="api-15min-remaining">—</div>
-              <div class="sub-metric-label">Remaining</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">📊 API Breakdown (Today)</div>
-          <div style="margin-top: 1rem;">
-            <div class="sub-metrics" style="flex-direction: column; gap: 0.75rem; border: none; padding: 0; margin: 0;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #94a3b8; font-size: 0.875rem;">Streams</span>
-                <span id="api-streams" style="color: #f1f5f9; font-weight: 600;">—</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #94a3b8; font-size: 0.875rem;">Activities</span>
-                <span id="api-activities" style="color: #f1f5f9; font-weight: 600;">—</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #94a3b8; font-size: 0.875rem;">Athlete</span>
-                <span id="api-athlete" style="color: #f1f5f9; font-weight: 600;">—</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div class="card">
         <div class="card-title">Recent Deauthorizations</div>
         <table class="log-table">
@@ -318,55 +238,6 @@
         document.getElementById('queue-total').textContent = queueTotal.toLocaleString();
         document.getElementById('queue-live').textContent = (data.queues?.live || 0).toLocaleString();
         document.getElementById('queue-backfill').textContent = (data.queues?.backfill || 0).toLocaleString();
-        
-        // Update API usage metrics
-        const apiAlert = document.getElementById('api-alert');
-        const apiDailyCard = document.getElementById('api-daily-card');
-        const api15minCard = document.getElementById('api-15min-card');
-        
-        if (data.api_usage) {
-          const daily = data.api_usage.daily;
-          const fifteenMin = data.api_usage.fifteenMin;
-          const alerts = data.api_usage.alerts;
-          
-          // Daily metrics
-          document.getElementById('api-daily-count').textContent = daily.count.toLocaleString();
-          document.getElementById('api-daily-percent').textContent = `${daily.percentage}%`;
-          document.getElementById('api-daily-remaining').textContent = daily.remaining.toLocaleString();
-          
-          // 15-min metrics
-          document.getElementById('api-15min-count').textContent = fifteenMin.count.toLocaleString();
-          document.getElementById('api-15min-percent').textContent = `${fifteenMin.percentage}%`;
-          document.getElementById('api-15min-remaining').textContent = fifteenMin.remaining.toLocaleString();
-          
-          // Endpoint breakdown
-          const endpoints = data.api_usage.endpoints || {};
-          document.getElementById('api-streams').textContent = (endpoints.streams || 0).toLocaleString();
-          document.getElementById('api-activities').textContent = (endpoints.activities || 0).toLocaleString();
-          document.getElementById('api-athlete').textContent = (endpoints.athlete || 0).toLocaleString();
-          
-          // Alert styling
-          apiDailyCard.className = 'card';
-          api15minCard.className = 'card';
-          apiAlert.className = 'alert-banner';
-          
-          if (alerts.daily_critical) {
-            apiDailyCard.className = 'card alert-critical';
-            apiAlert.className = 'alert-banner show';
-            apiAlert.textContent = `🚨 CRITICAL: Daily API limit at ${daily.percentage}% (${daily.count}/${daily.limit})`;
-          } else if (alerts.daily_warning) {
-            apiDailyCard.className = 'card alert-warning';
-            apiAlert.className = 'alert-banner show';
-            apiAlert.style.background = '#f59e0b';
-            apiAlert.textContent = `⚠️ WARNING: Daily API limit at ${daily.percentage}% (${daily.count}/${daily.limit})`;
-          }
-          
-          if (alerts.fifteenMin_critical) {
-            api15minCard.className = 'card alert-critical';
-          } else if (alerts.fifteenMin_warning) {
-            api15minCard.className = 'card alert-warning';
-          }
-        }
         
         // Update deauth log
         const logBody = document.getElementById('deauth-log');

@@ -1,7 +1,6 @@
 import { budgetOk, consume } from "../lib/rateLimiter";
 import { withDb, upsertActivitySummary } from "../lib/db";
 import { getActivity, getStreams } from "../lib/strava";
-import { trackStravaAPICall } from "../lib/apiTracking";
 
 export async function handler(event) {
   const job = JSON.parse(event.body || "{}"); // { athlete_id, activity_id, fetchStreams? }
@@ -16,7 +15,6 @@ export async function handler(event) {
   // 2) Activity detail
   const activity = await getActivity(athlete_id, activity_id);
   await consume("nonupload", 1);
-  await trackStravaAPICall("activities"); // Track for monitoring
 
   // 3) Upsert summary (metadata only - Strava compliant)
   await withDb(async (c) => { await upsertActivitySummary(c, activity); });
