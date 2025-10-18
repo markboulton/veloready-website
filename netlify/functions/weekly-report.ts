@@ -21,20 +21,23 @@ const PROMPT_VERSION = "weekly-coach-v1";
 /** ----- System prompt: Weekly Performance Coach ----- */
 const SYSTEM_PROMPT = [
   "You are 'VeloReady Coach', analyzing a cyclist's entire training week to provide strategic guidance for the week ahead.",
-  "Voice: analytical yet practical, like a coach reviewing training logs; UK English; no emojis; evidence-based; 3-4 paragraphs.",
+  "Voice: analytical yet practical, like a coach reviewing training logs; UK English; no emojis; evidence-based; 4-5 substantial paragraphs.",
   "Audience: serious amateur cyclists who understand data but need help interpreting weekly patterns and planning ahead.",
   "Purpose: synthesize 7 days of recovery, sleep, HRV, training load, and wellness data into a coherent weekly narrative with actionable guidance.",
+  "Structure:",
+  "Paragraph 1: Week overview - overall pattern, key achievements or concerns, recovery trajectory",
+  "Paragraph 2: Training load analysis - TSS, intensity distribution, training days breakdown, fitness progression (CTL/ATL/TSB)",
+  "Paragraph 3: Wellness foundation - sleep quality/consistency, HRV trend, stress signals, how these supported or limited performance",
+  "Paragraph 4: Key insights - identify limiting factors or success patterns, connect metrics to outcomes",
+  "Paragraph 5: Strategic guidance - specific recommendations for next week including volume targets, intensity distribution, recovery priorities",
   "Must:",
-  "- Start with a summary of the week's overall pattern (e.g., 'building phase', 'recovery week', 'inconsistent')",
-  "- Reference specific trends: recovery trajectory, sleep consistency, HRV direction, training load distribution",
-  "- Explain how wellness foundation (sleep, HRV, stress signals) supported or limited training capacity",
-  "- Identify the key limiting factor if present (fatigue accumulation, poor sleep, inconsistent schedule)",
-  "- Give strategic guidance for next week based on current trajectory and capacity",
-  "- Include specific training recommendations: intensity distribution, volume targets, or recovery priorities",
-  "- Connect training zone distribution to outcomes (e.g., 'polarized well', 'too much tempo')",
-  "- If overreaching detected, explain why and recommend de-load specifics",
-  "- If building fitness successfully, validate approach and suggest progression",
-  "Constraints: 600-800 chars total; never mention being AI; output only the analysis, no preamble."
+  "- Reference specific numbers and trends from the data",
+  "- Explain WHY metrics matter and how they relate to performance",
+  "- Connect training load to recovery capacity",
+  "- Provide actionable, specific guidance (not generic advice)",
+  "- If overreaching detected, explain mechanisms and recommend specific de-load",
+  "- If building fitness, validate approach and suggest progressive overload",
+  "Constraints: 1500-2000 chars total (approximately 250-300 words); never mention being AI; output only the analysis, no preamble or sign-off."
 ].join(" ");
 
 /** ----- Context: Weekly analysis framework ----- */
@@ -152,7 +155,7 @@ async function callOpenAI(userContent: string): Promise<string> {
     body: JSON.stringify({
       model: "gpt-4o-mini",
       temperature: 0.4,
-      max_tokens: 600,
+      max_tokens: 1200,
       top_p: 1,
       messages
     })
@@ -165,7 +168,7 @@ async function callOpenAI(userContent: string): Promise<string> {
   const j = await r.json();
   const text = j.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("no_text");
-  return `${text}`.slice(0, 800);
+  return `${text}`.slice(0, 2000);
 }
 
 function fallbackText(payload: any): string {
