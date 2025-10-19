@@ -36,7 +36,7 @@ export default async (request: Request, context: any) => {
     const [username, password] = decoded.split(':');
 
     const validUsername = 'admin';
-    const validPassword = 'mabo4283';
+    const validPassword = 'test123'; // TEMPORARY TEST PASSWORD
 
     console.log('[AUTH] Received username:', JSON.stringify(username));
     console.log('[AUTH] Received password:', JSON.stringify(password));
