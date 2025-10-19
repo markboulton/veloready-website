@@ -7,8 +7,8 @@ import { getStore } from "@netlify/blobs";
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   try {
-    // Try to create a store
-    const store = getStore("test-store");
+    // Try to create a store using the correct API
+    const store = getStore({ name: "test-store" });
     
     // Try to write
     await store.set("test-key", "Hello from Blobs!");
@@ -26,8 +26,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         success: true,
         message: "Netlify Blobs is working!",
         testValue: value,
-        siteId: process.env.SITE_ID || "not set",
-        context: process.env.CONTEXT || "not set"
+        deployContext: context.clientContext?.custom?.netlify?.deploy_context || "unknown"
       })
     };
   } catch (error: any) {
@@ -37,13 +36,8 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       body: JSON.stringify({
         success: false,
         error: error.message,
-        siteId: process.env.SITE_ID || "not set",
-        context: process.env.CONTEXT || "not set",
-        envVars: {
-          hasSiteId: !!process.env.SITE_ID,
-          hasContext: !!process.env.CONTEXT,
-          hasNetlifyToken: !!process.env.NETLIFY_TOKEN
-        }
+        errorStack: error.stack,
+        deployContext: context.clientContext?.custom?.netlify?.deploy_context || "unknown"
       })
     };
   }

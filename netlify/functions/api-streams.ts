@@ -47,10 +47,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // For now, using Mark's athlete ID
     const athleteId = 104662;
 
-    // Try Netlify Blobs cache first (24-hour TTL) - optional, graceful fallback
+    // Try Netlify Blobs cache first (24-hour TTL)
+    // In Netlify Functions, getStore() automatically uses the deployment context
     let cached = null;
     try {
-      const store = getStore("streams-cache");
+      const store = getStore({ name: "streams-cache" });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       cached = await store.get(cacheKey, { type: "json" });
       
@@ -75,9 +76,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     console.log(`[API Streams] Fetching from Strava for ${activityId}`);
     const streams = await getStreams(athleteId, parseInt(activityId));
 
-    // Try to cache in Netlify Blobs (optional)
+    // Cache in Netlify Blobs (24 hours)
     try {
-      const store = getStore("streams-cache");
+      const store = getStore({ name: "streams-cache" });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       await store.setJSON(cacheKey, streams, {
         metadata: {
