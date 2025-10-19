@@ -99,6 +99,33 @@
   status = 200
   force = true
 
+# ===== API ENDPOINTS (Clean URLs) =====
+
+[[redirects]]
+  from = "/api/activities"
+  to = "/.netlify/functions/api-activities"
+  status = 200
+
+[[redirects]]
+  from = "/api/streams/:id"
+  to = "/.netlify/functions/api-streams/:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/intervals/activities"
+  to = "/.netlify/functions/api-intervals-activities"
+  status = 200
+
+[[redirects]]
+  from = "/api/intervals/streams/:id"
+  to = "/.netlify/functions/api-intervals-streams/:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/intervals/wellness"
+  to = "/.netlify/functions/api-intervals-wellness"
+  status = 200
+
 # ===== AI ENDPOINTS =====
 
 [[redirects]]
