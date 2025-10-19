@@ -168,6 +168,14 @@
 
 # ===== OPS DASHBOARD =====
 
+[[edge_functions]]
+  path = "/ops/*"
+  function = "protect-ops"
+
+[[edge_functions]]
+  path = "/dashboard/*"
+  function = "protect-ops"
+
 [[redirects]]
   from = "/ops"
   to   = "/dashboard/index.html"
