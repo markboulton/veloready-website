@@ -102,6 +102,11 @@
 # ===== API ENDPOINTS (Clean URLs) =====
 
 [[redirects]]
+  from = "/test-blobs"
+  to = "/.netlify/functions/test-blobs"
+  status = 200
+
+[[redirects]]
   from = "/api/activities"
   to = "/.netlify/functions/api-activities"
   status = 200
