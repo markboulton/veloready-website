@@ -27,11 +27,22 @@ export default async (request: Request, context: any) => {
     const validUsername = 'admin';
     const validPassword = 'mabo4283';
 
+    console.log('[AUTH] Received username:', username);
+    console.log('[AUTH] Received password:', password);
+    console.log('[AUTH] Expected username:', validUsername);
+    console.log('[AUTH] Expected password:', validPassword);
+    console.log('[AUTH] Username match:', username === validUsername);
+    console.log('[AUTH] Password match:', password === validPassword);
+
     if (username === validUsername && password === validPassword) {
+      console.log('[AUTH] ✅ Authentication successful');
       // Authentication successful - pass through to the actual page
       return;
     }
+    
+    console.log('[AUTH] ❌ Authentication failed - credentials mismatch');
   } catch (error) {
+    console.log('[AUTH] ❌ Error parsing credentials:', error);
     // Invalid base64 or malformed header
   }
 
