@@ -107,6 +107,11 @@
   status = 200
 
 [[redirects]]
+  from = "/debug-cache"
+  to = "/.netlify/functions/debug-cache"
+  status = 200
+
+[[redirects]]
   from = "/api/activities"
   to = "/.netlify/functions/api-activities"
   status = 200
