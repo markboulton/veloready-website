@@ -57,9 +57,14 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       
       console.log(`[API Streams] Cache check - siteID: ${!!siteID}, token: ${!!token}`);
       
+      if (!siteID || !token) {
+        throw new Error("Missing siteID or token for Blobs");
+      }
+      
       const store = getStore({
         name: "streams-cache",
-        ...(siteID && token ? { siteID, token } : {})
+        siteID,
+        token
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       console.log(`[API Streams] Checking cache for key: ${cacheKey}`);
@@ -98,9 +103,14 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       
       console.log(`[API Streams] Attempting to cache - siteID: ${!!siteID}, token: ${!!token}`);
       
+      if (!siteID || !token) {
+        throw new Error("Missing siteID or token for Blobs");
+      }
+      
       const store = getStore({
         name: "streams-cache",
-        ...(siteID && token ? { siteID, token } : {})
+        siteID,
+        token
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       
