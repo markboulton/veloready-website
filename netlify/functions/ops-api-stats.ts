@@ -42,8 +42,12 @@ export async function handler(event: HandlerEvent) {
           usage_percentage: Math.min(100, (parseInt(apiCalls[0]?.total_calls || "0") / 1000) * 100).toFixed(1)
         },
         cache: {
-          estimated_hit_rate: cachePerf[0] ? 
-            ((parseInt(cachePerf[0].likely_cached) / parseInt(cachePerf[0].total_activities)) * 100).toFixed(1) : "0",
+          estimated_hit_rate: (() => {
+            const total = parseInt(cachePerf[0]?.total_activities || "0");
+            const cached = parseInt(cachePerf[0]?.likely_cached || "0");
+            if (total === 0) return "0";
+            return ((cached / total) * 100).toFixed(1);
+          })(),
           activities_cached: parseInt(cachePerf[0]?.likely_cached || "0"),
           activities_fetched: parseInt(cachePerf[0]?.likely_fetched || "0"),
           edge_cache_ttl: "1 hour",
