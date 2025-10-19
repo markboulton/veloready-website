@@ -170,19 +170,19 @@
 
 [[edge_functions]]
   path = "/ops"
-  function = "dashboard-auth"
+  function = "ops-auth"
 
 [[edge_functions]]
   path = "/ops/*"
-  function = "dashboard-auth"
+  function = "ops-auth"
 
 [[edge_functions]]
   path = "/dashboard"
-  function = "dashboard-auth"
+  function = "ops-auth"
 
 [[edge_functions]]
   path = "/dashboard/*"
-  function = "dashboard-auth"
+  function = "ops-auth"
 
 [[redirects]]
   from = "/ops"
