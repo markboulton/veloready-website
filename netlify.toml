@@ -169,7 +169,15 @@
 # ===== OPS DASHBOARD =====
 
 [[edge_functions]]
+  path = "/ops"
+  function = "dashboard-auth"
+
+[[edge_functions]]
   path = "/ops/*"
+  function = "dashboard-auth"
+
+[[edge_functions]]
+  path = "/dashboard"
   function = "dashboard-auth"
 
 [[edge_functions]]

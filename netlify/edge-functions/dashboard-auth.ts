@@ -1,13 +1,19 @@
 export default async (request: Request, context: any) => {
   const url = new URL(request.url);
   
+  console.log('[AUTH] Edge Function triggered for:', url.pathname);
+  
   // Only protect /ops/ and /dashboard/ paths
   if (!url.pathname.startsWith('/ops') && !url.pathname.startsWith('/dashboard')) {
+    console.log('[AUTH] Path not protected, passing through');
     return; // Pass through to next handler
   }
 
+  console.log('[AUTH] Path is protected, checking auth');
+
   // Check for authorization header
   const authHeader = request.headers.get('authorization');
+  console.log('[AUTH] Auth header present:', !!authHeader);
   
   if (!authHeader || !authHeader.startsWith('Basic ')) {
     return new Response('Authentication required', {
