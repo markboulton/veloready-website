@@ -27,18 +27,25 @@ export default async (request: Request, context: any) => {
   // Verify credentials
   try {
     const base64Credentials = authHeader.substring(6); // Remove 'Basic '
-    const credentials = atob(base64Credentials);
-    const [username, password] = credentials.split(':');
+    console.log('[AUTH] Base64 credentials:', base64Credentials);
+    
+    // Decode base64 - use TextDecoder for proper string handling in Deno
+    const decoded = atob(base64Credentials);
+    console.log('[AUTH] Decoded credentials:', decoded);
+    
+    const [username, password] = decoded.split(':');
 
     const validUsername = 'admin';
     const validPassword = 'mabo4283';
 
-    console.log('[AUTH] Received username:', username);
-    console.log('[AUTH] Received password:', password);
-    console.log('[AUTH] Expected username:', validUsername);
-    console.log('[AUTH] Expected password:', validPassword);
+    console.log('[AUTH] Received username:', JSON.stringify(username));
+    console.log('[AUTH] Received password:', JSON.stringify(password));
+    console.log('[AUTH] Expected username:', JSON.stringify(validUsername));
+    console.log('[AUTH] Expected password:', JSON.stringify(validPassword));
     console.log('[AUTH] Username match:', username === validUsername);
     console.log('[AUTH] Password match:', password === validPassword);
+    console.log('[AUTH] Username length:', username.length, 'Expected:', validUsername.length);
+    console.log('[AUTH] Password length:', password.length, 'Expected:', validPassword.length);
 
     if (username === validUsername && password === validPassword) {
       console.log('[AUTH] ✅ Authentication successful');
@@ -47,9 +54,23 @@ export default async (request: Request, context: any) => {
     }
     
     console.log('[AUTH] ❌ Authentication failed - credentials mismatch');
+    
+    // TEMPORARY DEBUG: Return detailed error
+    return new Response(`Auth failed - user: "${username}" (len:${username.length}), pass: "${password}" (len:${password.length})`, {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': 'Basic realm="VeloReady Dashboard"',
+      },
+    });
   } catch (error) {
     console.log('[AUTH] ❌ Error parsing credentials:', error);
     // Invalid base64 or malformed header
+    return new Response(`Auth error: ${error}`, {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': 'Basic realm="VeloReady Dashboard"',
+      },
+    });
   }
 
   return new Response('Invalid credentials', {
