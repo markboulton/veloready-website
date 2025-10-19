@@ -8,9 +8,11 @@ import { getStore } from "@netlify/blobs";
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   try {
     // In Netlify Functions v2, we need to use environment variables
-    // These are automatically set by Netlify when deploying
+    // Try multiple token sources in order of preference
     const siteID = process.env.SITE_ID;
-    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+    const token = process.env.NETLIFY_BLOBS_TOKEN 
+      || process.env.NETLIFY_TOKEN 
+      || process.env.NETLIFY_FUNCTIONS_TOKEN;
     
     // Try to create a store
     const store = getStore({
@@ -46,7 +48,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         success: false,
         error: error.message,
         siteID: process.env.SITE_ID || "not set",
-        hasToken: !!(process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN),
+        hasToken: !!(process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN || process.env.NETLIFY_FUNCTIONS_TOKEN),
+        tokenSource: process.env.NETLIFY_BLOBS_TOKEN ? "NETLIFY_BLOBS_TOKEN" 
+          : process.env.NETLIFY_TOKEN ? "NETLIFY_TOKEN"
+          : process.env.NETLIFY_FUNCTIONS_TOKEN ? "NETLIFY_FUNCTIONS_TOKEN"
+          : "none",
         availableEnvVars: Object.keys(process.env).filter(k => k.includes('NETLIFY') || k.includes('SITE'))
       })
     };

@@ -51,7 +51,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     let cached = null;
     try {
       const siteID = process.env.SITE_ID;
-      const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+      const token = process.env.NETLIFY_BLOBS_TOKEN 
+        || process.env.NETLIFY_TOKEN 
+        || process.env.NETLIFY_FUNCTIONS_TOKEN;
       
       const store = getStore({
         name: "streams-cache",
@@ -84,7 +86,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // Cache in Netlify Blobs (24 hours)
     try {
       const siteID = process.env.SITE_ID;
-      const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+      const token = process.env.NETLIFY_BLOBS_TOKEN 
+        || process.env.NETLIFY_TOKEN 
+        || process.env.NETLIFY_FUNCTIONS_TOKEN;
       
       const store = getStore({
         name: "streams-cache",
