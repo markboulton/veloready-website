@@ -55,15 +55,19 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         || process.env.NETLIFY_TOKEN 
         || process.env.NETLIFY_FUNCTIONS_TOKEN;
       
+      console.log(`[API Streams] Cache check - siteID: ${!!siteID}, token: ${!!token}`);
+      
       const store = getStore({
         name: "streams-cache",
         ...(siteID && token ? { siteID, token } : {})
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
+      console.log(`[API Streams] Checking cache for key: ${cacheKey}`);
+      
       cached = await store.get(cacheKey, { type: "json" });
       
       if (cached) {
-        console.log(`[API Streams] Cache HIT for ${activityId}`);
+        console.log(`[API Streams] ✅ Cache HIT for ${activityId}`);
         return {
           statusCode: 200,
           headers: {
@@ -73,10 +77,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           },
           body: JSON.stringify(cached)
         };
+      } else {
+        console.log(`[API Streams] ❌ Cache MISS for ${activityId} - no data found`);
       }
     } catch (cacheError: any) {
       // Blobs not configured or cache miss - continue without caching
-      console.log(`[API Streams] Blobs not available, skipping cache:`, cacheError?.message || cacheError);
+      console.error(`[API Streams] ⚠️ Cache error:`, cacheError?.message || cacheError, cacheError?.stack);
     }
 
     // Fetch from Strava
@@ -90,11 +96,16 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         || process.env.NETLIFY_TOKEN 
         || process.env.NETLIFY_FUNCTIONS_TOKEN;
       
+      console.log(`[API Streams] Attempting to cache - siteID: ${!!siteID}, token: ${!!token}`);
+      
       const store = getStore({
         name: "streams-cache",
         ...(siteID && token ? { siteID, token } : {})
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
+      
+      console.log(`[API Streams] Caching key: ${cacheKey}, data size: ${JSON.stringify(streams).length} bytes`);
+      
       await store.setJSON(cacheKey, streams, {
         metadata: {
           athleteId: athleteId.toString(),
@@ -102,10 +113,10 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           cachedAt: new Date().toISOString()
         }
       });
-      console.log(`[API Streams] Cached streams for ${activityId}`);
+      console.log(`[API Streams] ✅ Successfully cached streams for ${activityId}`);
     } catch (cacheError: any) {
       // Caching failed - not critical, continue
-      console.log(`[API Streams] Caching skipped:`, cacheError?.message || cacheError);
+      console.error(`[API Streams] ❌ Caching failed:`, cacheError?.message || cacheError, cacheError?.stack);
     }
 
     return {
