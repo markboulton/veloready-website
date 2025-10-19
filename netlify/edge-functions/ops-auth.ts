@@ -1,4 +1,8 @@
 export default async (request: Request, context: any) => {
+  // TEMPORARY: Disable auth to debug
+  console.log('[AUTH] Edge Function triggered, passing through without auth');
+  return; // Pass through without authentication
+  
   const url = new URL(request.url);
   
   console.log('[AUTH] Edge Function triggered for:', url.pathname);
