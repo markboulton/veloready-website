@@ -95,6 +95,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     const streams = await getStreams(athleteId, parseInt(activityId));
 
     // Cache in Netlify Blobs (24 hours)
+    let cacheStatus = "not-attempted";
     try {
       const siteID = process.env.SITE_ID;
       const token = process.env.NETLIFY_BLOBS_TOKEN 
@@ -124,9 +125,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         }
       });
       console.log(`[API Streams] ✅ Successfully cached streams for ${activityId}`);
+      cacheStatus = "cached";
     } catch (cacheError: any) {
       // Caching failed - not critical, continue
       console.error(`[API Streams] ❌ Caching failed:`, cacheError?.message || cacheError, cacheError?.stack);
+      cacheStatus = `failed: ${cacheError?.message}`;
     }
 
     return {
@@ -134,7 +137,8 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=86400", // 24 hours
-        "X-Cache": "MISS"
+        "X-Cache": "MISS",
+        "X-Cache-Write": cacheStatus
       },
       body: JSON.stringify(streams)
     };
