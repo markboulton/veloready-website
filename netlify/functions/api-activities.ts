@@ -13,7 +13,7 @@ import { listActivitiesSince } from "../lib/strava";
  * 
  * Returns: Array of Strava activities
  * 
- * Caching: Results cached for 5 minutes per user
+ * Caching: Results cached for 1 hour per user
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   // Only allow GET requests
@@ -50,12 +50,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
 
     console.log(`[API Activities] Fetched ${activities.length} activities from Strava`);
 
-    // Return with cache headers (5 minutes)
+    // Return with cache headers (1 hour for better scaling)
     return {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=300", // 5 minutes cache
+        "Cache-Control": "private, max-age=3600", // 1 hour cache (Phase 3 optimization)
         "X-Cache": "MISS", // Indicates this was fetched from Strava
         "X-Activity-Count": activities.length.toString()
       },
@@ -66,7 +66,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           daysBack,
           limit,
           count: activities.length,
-          cachedUntil: new Date(Date.now() + 300000).toISOString()
+          cachedUntil: new Date(Date.now() + 3600000).toISOString()
         }
       })
     };
