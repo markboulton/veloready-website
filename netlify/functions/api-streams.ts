@@ -47,12 +47,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // For now, using Mark's athlete ID
     const athleteId = 104662;
 
-    // Check Netlify Blobs cache first (24-hour TTL)
-    const store = getStore("streams-cache");
-    const cacheKey = `streams:${athleteId}:${activityId}`;
-    
+    // Try Netlify Blobs cache first (24-hour TTL) - optional, graceful fallback
+    let cached = null;
     try {
-      const cached = await store.get(cacheKey, { type: "json" });
+      const store = getStore("streams-cache");
+      const cacheKey = `streams:${athleteId}:${activityId}`;
+      cached = await store.get(cacheKey, { type: "json" });
+      
       if (cached) {
         console.log(`[API Streams] Cache HIT for ${activityId}`);
         return {
@@ -65,16 +66,19 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           body: JSON.stringify(cached)
         };
       }
-    } catch (cacheError) {
-      console.log(`[API Streams] Cache miss for ${activityId}:`, cacheError);
+    } catch (cacheError: any) {
+      // Blobs not configured or cache miss - continue without caching
+      console.log(`[API Streams] Blobs not available, skipping cache:`, cacheError?.message || cacheError);
     }
 
-    // Cache miss - fetch from Strava
-    console.log(`[API Streams] Cache MISS - fetching from Strava for ${activityId}`);
+    // Fetch from Strava
+    console.log(`[API Streams] Fetching from Strava for ${activityId}`);
     const streams = await getStreams(athleteId, parseInt(activityId));
 
-    // Cache in Netlify Blobs (24 hours)
+    // Try to cache in Netlify Blobs (optional)
     try {
+      const store = getStore("streams-cache");
+      const cacheKey = `streams:${athleteId}:${activityId}`;
       await store.setJSON(cacheKey, streams, {
         metadata: {
           athleteId: athleteId.toString(),
@@ -83,9 +87,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         }
       });
       console.log(`[API Streams] Cached streams for ${activityId}`);
-    } catch (cacheError) {
-      console.error(`[API Streams] Failed to cache:`, cacheError);
-      // Continue anyway - caching is not critical
+    } catch (cacheError: any) {
+      // Caching failed - not critical, continue
+      console.log(`[API Streams] Caching skipped:`, cacheError?.message || cacheError);
     }
 
     return {
