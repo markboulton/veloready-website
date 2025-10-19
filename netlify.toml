@@ -170,12 +170,6 @@
 
 [[redirects]]
   from = "/ops"
-  to   = "/dashboard/index.html"
-  status = 200
-  force = true
-  
-[[redirects]]
-  from = "/ops/*"
-  to   = "/dashboard/:splat"
+  to   = "/.netlify/functions/ops-dashboard"
   status = 200
   force = true
