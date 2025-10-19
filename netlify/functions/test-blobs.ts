@@ -7,8 +7,16 @@ import { getStore } from "@netlify/blobs";
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   try {
-    // Try to create a store using the correct API
-    const store = getStore({ name: "test-store" });
+    // In Netlify Functions v2, we need to use environment variables
+    // These are automatically set by Netlify when deploying
+    const siteID = process.env.SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+    
+    // Try to create a store
+    const store = getStore({
+      name: "test-store",
+      ...(siteID && token ? { siteID, token } : {})
+    });
     
     // Try to write
     await store.set("test-key", "Hello from Blobs!");
@@ -26,7 +34,8 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         success: true,
         message: "Netlify Blobs is working!",
         testValue: value,
-        deployContext: context.clientContext?.custom?.netlify?.deploy_context || "unknown"
+        siteID: siteID || "not set",
+        hasToken: !!token
       })
     };
   } catch (error: any) {
@@ -36,8 +45,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       body: JSON.stringify({
         success: false,
         error: error.message,
-        errorStack: error.stack,
-        deployContext: context.clientContext?.custom?.netlify?.deploy_context || "unknown"
+        siteID: process.env.SITE_ID || "not set",
+        hasToken: !!(process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN),
+        availableEnvVars: Object.keys(process.env).filter(k => k.includes('NETLIFY') || k.includes('SITE'))
       })
     };
   }
