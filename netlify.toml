@@ -168,23 +168,14 @@
 
 # ===== OPS DASHBOARD =====
 
-[[edge_functions]]
-  path = "/ops"
-  function = "ops-auth"
-
-[[edge_functions]]
-  path = "/ops/*"
-  function = "ops-auth"
-
-[[edge_functions]]
-  path = "/dashboard"
-  function = "ops-auth"
-
-[[edge_functions]]
-  path = "/dashboard/*"
-  function = "ops-auth"
-
 [[redirects]]
   from = "/ops"
   to   = "/dashboard/index.html"
   status = 200
+  force = true
+  
+[[redirects]]
+  from = "/ops/*"
+  to   = "/dashboard/:splat"
+  status = 200
+  force = true
