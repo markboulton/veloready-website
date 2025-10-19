@@ -49,17 +49,18 @@
 # PROTECTED DASHBOARD (Authentication required)
 # ============================================
 
-# Dashboard at /ops/* - requires username and password
+# Dashboard at /ops/* - security headers only (auth handled by function)
 /ops/*
-  Basic-Auth: admin:${DASHBOARD_PASSWORD}
   X-Robots-Tag: noindex
   Cache-Control: no-cache, no-store, must-revalidate
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
-# Dashboard at /dashboard/* - also protected
+# Dashboard at /dashboard/* - security headers only (auth handled by function)
 /dashboard/*
-  Basic-Auth: admin:${DASHBOARD_PASSWORD}
   X-Robots-Tag: noindex
   Cache-Control: no-cache, no-store, must-revalidate
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
