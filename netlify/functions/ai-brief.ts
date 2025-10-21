@@ -26,11 +26,11 @@ const SYSTEM_PROMPT = [
   "Purpose: interpret today's recovery, readiness, and load numbers to decide how hard to ride — and explain why briefly.",
   "Tone inspiration: a mix of sports scientist and practical coach, similar to TrainingPeaks, Fast Talk Labs, or British Cycling coaches.",
   "Must:",
-  "- Always reference at least two of: Recovery %, Sleep Delta, HRV Delta, RHR Delta, TSB, Target TSS range, Illness Indicator, or today's plan.",
+  "- Always reference at least two of: Recovery %, Sleep Delta, HRV Delta, RHR Delta, TSB, Target TSS range, Body Stress signals, or today's plan.",
   "- Give a clear recommendation (zones, duration, or TSS) AND one actionable habit cue (fueling, recovery, pacing, or sleep routine).",
   "- Use cause-effect language: 'Because HRV is down...', 'Since TSB is positive...'.",
   "- If signals conflict, decide which metric matters more and say why.",
-  "- If Illness Indicator present (especially HRV spike >100% or moderate/high severity), ALWAYS suggest rest or very light Z1 recovery regardless of other metrics. Use educational language like 'your body may need rest' not diagnostic language.",
+  "- If Body Stress Indicator present (especially HRV spike >100% or moderate/high severity), ALWAYS suggest rest or very light Z1 recovery regardless of other metrics. Use educational language like 'your metrics suggest extra recovery' not diagnostic language.",
   "- If Recovery < 50% or HRV Delta <= -2% and RHR Delta >= +2%, suggest a de-load (Zone 1-2 or rest).",
   "- If Recovery >= 66% and TSB >= 0, metrics support a productive session (Tempo, Sweet Spot, or Threshold).",
   "- If time-crunched, recommend the most effective 45-60 min session within limits.",
@@ -49,7 +49,7 @@ const CONTEXT_PREFIX = [
 /** ----- Decision logic summary (shown to model) ----- */
 const DECISION_RULES = [
   "Rules:",
-  "CRITICAL: If Illness Indicator = MODERATE or HIGH, override all other metrics -> suggest rest or max 30 TSS Z1 gentle spin. Educational tone: 'Your metrics suggest your body needs rest today' not 'You are sick, rest required'.",
+  "CRITICAL: If Body Stress Indicator = MODERATE or HIGH, override all other metrics -> suggest rest or max 30 TSS Z1 gentle spin. Educational tone: 'Your metrics suggest your body needs extra recovery today' not 'You are sick'.",
   "If HRV spike >100% (unusual autonomic response) -> metrics suggest your body needs extra recovery, consider rest or very light activity.",
   "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2%) -> suggest de-load <= 55 TSS (Z1-Z2).",
   "If Recovery >= 66% AND TSB >= 0 -> metrics support a productive session at top of target.",
@@ -146,12 +146,12 @@ function buildUserContent(payload: any) {
     sleepMetric = `Sleep: N/A`;
   }
   
-  // Build illness indicator string if present
-  let illnessMetric = "";
+  // Build body stress indicator string if present
+  let stressMetric = "";
   if (illnessIndicator && illnessIndicator.severity) {
     const signals = illnessIndicator.signals || [];
     const signalTypes = signals.map((s: any) => s.type).join(", ");
-    illnessMetric = ` | ⚠️ Illness: ${illnessIndicator.severity.toUpperCase()} (${Math.round(illnessIndicator.confidence * 100)}% confidence) - Signals: ${signalTypes}`;
+    stressMetric = ` | ⚠️ Body Stress: ${illnessIndicator.severity.toUpperCase()} (${Math.round(illnessIndicator.confidence * 100)}% confidence) - Signals: ${signalTypes}`;
   }
   
   // Build metrics line with "N/A" for missing data
@@ -163,7 +163,7 @@ function buildUserContent(payload: any) {
     `TSB: ${tsb >= 0 ? '+' : ''}${tsb}`,
     `Target TSS: ${tssLow}-${tssHigh}`,
     plan ? `Plan: ${plan}` : null
-  ].filter(Boolean).join(" | ") + illnessMetric;
+  ].filter(Boolean).join(" | ") + stressMetric;
   
   // Add warning if critical data is missing
   let warning = "";
@@ -246,11 +246,11 @@ export const handler: Handler = async (event, _context) => {
 
     const ttl = Number(process.env.CACHE_TTL_SECONDS || 86400);
     
-    // Check if sleep data is missing or illness detected - use different cache keys
+    // Check if sleep data is missing or body stress detected - use different cache keys
     const { sleepScore, sleepDelta, illnessIndicator } = payload ?? {};
     const hasMissingData = (sleepScore === null || sleepScore === undefined) && (sleepDelta === null || sleepDelta === undefined);
-    const hasIllness = illnessIndicator && illnessIndicator.severity;
-    const cacheKeySuffix = hasIllness ? "illness" : hasMissingData ? "no-sleep" : "full";
+    const hasStress = illnessIndicator && illnessIndicator.severity;
+    const cacheKeySuffix = hasStress ? "stress" : hasMissingData ? "no-sleep" : "full";
     const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${cacheKeySuffix}`;
 
     try {
