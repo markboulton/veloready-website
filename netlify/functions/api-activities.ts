@@ -8,8 +8,8 @@ import { listActivitiesSince } from "../lib/strava";
  * Fetch activities for authenticated user with caching
  * 
  * Query params:
- * - daysBack: Number of days to fetch (default: 30, max: 90)
- * - limit: Max activities to return (default: 50, max: 200)
+ * - daysBack: Number of days to fetch (default: 30, max: 365)
+ * - limit: Max activities to return (default: 50, max: 500)
  * 
  * Returns: Array of Strava activities
  * 
@@ -33,11 +33,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // Parse query parameters
     const daysBack = Math.min(
       parseInt(event.queryStringParameters?.daysBack || "30"),
-      90 // Cap at 90 days
+      365 // Cap at 365 days (1 year of history)
     );
     const limit = Math.min(
       parseInt(event.queryStringParameters?.limit || "50"),
-      200 // Strava max
+      500 // Increased from 200 to support historical ride charts
     );
 
     console.log(`[API Activities] Request: athleteId=${athleteId}, daysBack=${daysBack}, limit=${limit}`);
@@ -45,10 +45,37 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // Calculate timestamp for "after" parameter
     const afterTimestamp = Math.floor(Date.now() / 1000) - (daysBack * 24 * 3600);
 
-    // Fetch from Strava (using existing library function)
-    const activities = await listActivitiesSince(athleteId, afterTimestamp, 1, limit);
+    // Fetch from Strava with pagination support
+    // Strava API max per_page is 200, so we need multiple requests for limit > 200
+    let allActivities: any[] = [];
+    let page = 1;
+    const perPage = Math.min(limit, 200); // Strava max per page
+    
+    while (allActivities.length < limit) {
+      const pageActivities = await listActivitiesSince(athleteId, afterTimestamp, page, perPage);
+      
+      if (pageActivities.length === 0) {
+        // No more activities available
+        break;
+      }
+      
+      allActivities = allActivities.concat(pageActivities);
+      
+      // If we got fewer than perPage, we've reached the end
+      if (pageActivities.length < perPage) {
+        break;
+      }
+      
+      // If we've collected enough, stop
+      if (allActivities.length >= limit) {
+        allActivities = allActivities.slice(0, limit);
+        break;
+      }
+      
+      page++;
+    }
 
-    console.log(`[API Activities] Fetched ${activities.length} activities from Strava`);
+    console.log(`[API Activities] Fetched ${allActivities.length} activities from Strava (${page} pages)`);
 
     // Return with cache headers (1 hour for better scaling)
     return {
@@ -57,15 +84,15 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         "Content-Type": "application/json",
         "Cache-Control": "private, max-age=3600", // 1 hour cache (Phase 3 optimization)
         "X-Cache": "MISS", // Indicates this was fetched from Strava
-        "X-Activity-Count": activities.length.toString()
+        "X-Activity-Count": allActivities.length.toString()
       },
       body: JSON.stringify({
-        activities,
+        activities: allActivities,
         metadata: {
           athleteId,
           daysBack,
           limit,
-          count: activities.length,
+          count: allActivities.length,
           cachedUntil: new Date(Date.now() + 3600000).toISOString()
         }
       })
