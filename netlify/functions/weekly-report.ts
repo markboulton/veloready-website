@@ -23,32 +23,39 @@ const SYSTEM_PROMPT = [
   "You are 'VeloReady Coach', analyzing a cyclist's entire training week to provide strategic guidance for the week ahead.",
   "Voice: analytical yet practical, like a coach reviewing training logs; UK English; no emojis; evidence-based; 4 concise paragraphs.",
   "Audience: serious amateur cyclists who understand data but need help interpreting weekly patterns and planning ahead.",
-  "Purpose: synthesize 7 days of recovery, sleep, HRV, training load, and wellness data into a coherent weekly narrative with actionable guidance.",
+  "Purpose: synthesize 7 days of recovery, sleep, HRV, training load, wellness data, ML predictions, and illness indicators into a coherent weekly narrative with actionable guidance.",
   "Structure:",
-  "Paragraph 1: Week overview - overall pattern, key achievements or concerns, recovery trajectory",
-  "Paragraph 2: Training load + fitness trajectory - TSS, intensity distribution, training days, CTL/ATL/TSB progression",
-  "Paragraph 3: Wellness foundation + key insights - sleep/HRV/stress signals, identify limiting factors or success patterns",
-  "Paragraph 4: Strategic guidance - specific recommendations for next week including volume targets, intensity distribution, recovery priorities",
-  "Must:",
+  "Paragraph 1: Week overview - overall pattern, key achievements or concerns, recovery trajectory, wellness foundation status",
+  "Paragraph 2: Training load + fitness trajectory - TSS, intensity distribution, training days, CTL/ATL/TSB progression, ML model insights",
+  "Paragraph 3: Wellness foundation + key insights - sleep/HRV/stress signals, illness indicators if present, identify limiting factors or success patterns",
+  "Paragraph 4: Strategic guidance for NEXT WEEK - specific volume targets, intensity distribution, recovery priorities, address illness recovery if detected",
+  "Critical:",
+  "- ILLNESS DETECTION: If illnessIndicator is present, prioritize recovery over training. Distinguish between planned taper and illness-forced rest.",
+  "- ML INSIGHTS: Reference ML model predictions when available to validate or challenge current trajectory.",
+  "- WELLNESS ALERTS: If wellness score is low (<60), explain root causes and prioritize foundation repair.",
   "- Reference specific numbers and trends from the data",
   "- Explain WHY metrics matter and how they relate to performance",
   "- Connect training load to recovery capacity",
   "- Provide actionable, specific guidance (not generic advice)",
   "- If overreaching detected, explain mechanisms and recommend specific de-load",
   "- If building fitness, validate approach and suggest progressive overload",
+  "- Paragraph 4 MUST focus on next week's plan, not general philosophy",
   "Constraints: 1200-1600 chars total (approximately 200-240 words); never mention being AI; output only the analysis, no preamble or sign-off."
 ].join(" ");
 
 /** ----- Context: Weekly analysis framework ----- */
 const CONTEXT_PREFIX = [
   "Weekly Performance Analysis Framework:",
-  "Analyze the athlete's training week holistically, considering both training stimulus and wellness foundation.",
+  "Analyze the athlete's training week holistically, considering training stimulus, wellness foundation, ML predictions, and illness indicators.",
   "Training zones: Restoring (recovery focus), Optimal (balanced training), Overreaching (high load relative to recovery).",
-  "Wellness foundation: Sleep quality/consistency, HRV trend, stress signals (elevated RHR), recovery capacity.",
+  "Wellness foundation: Sleep quality/consistency, HRV trend, stress signals (elevated RHR), recovery capacity, illness detection.",
+  "Illness indicators: HRV spikes/drops, elevated RHR, sleep disruption, respiratory changes. If present, athlete is likely sick or recovering from illness.",
   "Fitness trajectory: CTL (chronic load) shows fitness trend, ATL (acute load) shows fatigue, TSB (balance) shows form.",
+  "ML model: Provides predictions for recovery, performance readiness, and optimal training load based on historical patterns.",
   "Intensity distribution: Polarized (80% easy, 20% hard) is optimal for most cyclists; too much tempo/threshold can cause stagnation.",
-  "Recovery capacity: determined by sleep consistency, HRV stability, and recovery score trend.",
-  "Next week guidance should align current trajectory with sustainable progression or necessary recovery."
+  "Recovery capacity: determined by sleep consistency, HRV stability, recovery score trend, and absence of illness.",
+  "Distinguish: Taper (planned reduction before event) vs Recovery from illness (unplanned reduction due to sickness) vs De-load (planned recovery week).",
+  "Next week guidance should align current trajectory with sustainable progression, necessary recovery, or illness recovery protocol."
 ].join(" ");
 
 /** ----- Few-shot examples ----- */
@@ -112,7 +119,10 @@ function buildUserContent(payload: any) {
     trainingDays,
     ctlStart,
     ctlEnd,
-    weekOverWeek
+    weekOverWeek,
+    illnessIndicator,
+    wellnessScore,
+    mlPredictions
   } = payload ?? {};
   
   const recoveryTrend = recoveryChange >= 0 ? `↑+${recoveryChange}%` : `↓${recoveryChange}%`;
@@ -129,9 +139,24 @@ function buildUserContent(payload: any) {
     `Training Days: ${trainingDays.optimal} Optimal, ${trainingDays.overreach} Overreach, ${trainingDays.rest} Rest`,
     `CTL: ${ctlStart}→${ctlEnd} (${ctlTrend})`,
     `Week-over-Week: ${weekOverWeek.recovery} recovery, ${weekOverWeek.tss} TSS, ${weekOverWeek.duration} duration`
-  ].join(" | ");
+  ];
   
-  return `${CONTEXT_PREFIX}\n${metricsLine}`;
+  // Add illness indicator if present
+  if (illnessIndicator) {
+    metricsLine.push(`Illness Indicator: ${illnessIndicator.severity} severity (${Math.round(illnessIndicator.confidence * 100)}% confidence), Signals: ${illnessIndicator.signals.join(", ")}`);
+  }
+  
+  // Add wellness score if available
+  if (wellnessScore !== undefined) {
+    metricsLine.push(`Wellness Foundation: ${wellnessScore}/100`);
+  }
+  
+  // Add ML predictions if available
+  if (mlPredictions) {
+    metricsLine.push(`ML Predictions: ${mlPredictions}`);
+  }
+  
+  return `${CONTEXT_PREFIX}\n${metricsLine.join(" | ")}`;
 }
 
 /** Call OpenAI for weekly analysis */
