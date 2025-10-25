@@ -6,6 +6,11 @@ export const ENV = {
   OAUTH_REDIRECT_URL: process.env.OAUTH_REDIRECT_URL!,
 
   DATABASE_URL: process.env.DATABASE_URL!,
+  // Optional: Supabase TRANSACTION pooler URL (port 6543) - recommended for production
+  // Use Transaction mode for serverless, NOT Session mode
+  // Falls back to DATABASE_URL if not set
+  DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL,
+
   REDIS_URL: process.env.REDIS_URL!,
   REDIS_TOKEN: process.env.REDIS_TOKEN!,
 

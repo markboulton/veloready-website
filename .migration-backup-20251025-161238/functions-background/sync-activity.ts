@@ -1,5 +1,5 @@
 import { budgetOk, consume } from "../lib/rateLimiter";
-import { withDb, upsertActivitySummary } from "../lib/db-pooled";
+import { withDb, upsertActivitySummary } from "../lib/db";
 import { getActivity, getStreams } from "../lib/strava";
 
 export async function handler(event) {

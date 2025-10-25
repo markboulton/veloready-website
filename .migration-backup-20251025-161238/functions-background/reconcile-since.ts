@@ -1,6 +1,6 @@
 import { budgetOk, consume } from "../lib/rateLimiter";
 import { listActivitiesSince } from "../lib/strava";
-import { withDb, upsertActivitySummary } from "../lib/db-pooled";
+import { withDb, upsertActivitySummary } from "../lib/db";
 
 export async function handler(event) {
   const { athlete_id, since_iso } = JSON.parse(event.body || "{}");

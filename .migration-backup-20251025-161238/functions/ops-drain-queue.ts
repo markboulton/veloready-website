@@ -1,6 +1,6 @@
 import { HandlerEvent } from "@netlify/functions";
 import { popLive } from "../lib/queue";
-import { withDb, upsertActivitySummary, getAthlete } from "../lib/db-pooled";
+import { withDb, upsertActivitySummary, getAthlete } from "../lib/db";
 
 /**
  * Manual queue drain for testing

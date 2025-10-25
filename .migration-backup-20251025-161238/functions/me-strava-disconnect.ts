@@ -1,5 +1,5 @@
 import { HandlerEvent } from "@netlify/functions";
-import { withDb } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 
 /**
  * Disconnect Strava for the authenticated athlete

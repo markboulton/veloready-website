@@ -1,6 +1,6 @@
 import { HandlerEvent } from "@netlify/functions";
 import { enqueueLive } from "../lib/queue";
-import { withDb } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 
 export async function handler(event: HandlerEvent) {
   // Verification handshake

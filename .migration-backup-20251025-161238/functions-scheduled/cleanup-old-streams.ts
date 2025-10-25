@@ -1,4 +1,4 @@
-import { withDb } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 
 /**
  * Cleanup Old Activity Streams (Strava API Compliance)

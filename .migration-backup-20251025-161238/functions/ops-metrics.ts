@@ -1,5 +1,5 @@
 import { HandlerEvent } from "@netlify/functions";
-import { withDb } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 import { depth, Q } from "../lib/queue";
 import { get } from "../lib/redis";
 

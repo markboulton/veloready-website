@@ -1,4 +1,4 @@
-import { withDb } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 import { ENV } from "../lib/env";
 
 export async function handler() {

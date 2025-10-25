@@ -1,5 +1,5 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
-import { withDb } from "../lib/db";
+import { withDb } from "../lib/db-pooled";
 import { authenticate } from "../lib/auth";
 
 /**

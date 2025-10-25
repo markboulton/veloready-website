@@ -1,6 +1,6 @@
 import { schedule } from "@netlify/functions";
 import { popLive } from "../lib/queue";
-import { withDb, upsertActivitySummary, getAthlete } from "../lib/db-pooled";
+import { withDb, upsertActivitySummary, getAthlete } from "../lib/db";
 
 /**
  * Scheduled worker that drains the queue every 5 minutes

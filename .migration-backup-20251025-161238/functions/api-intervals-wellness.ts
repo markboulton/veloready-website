@@ -1,17 +1,16 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
-import { withDb, getAthlete } from "../lib/db-pooled";
+import { withDb } from "../lib/db";
 import { authenticate } from "../lib/auth";
 
 /**
- * GET /api/intervals/activities
+ * GET /api/intervals/wellness
  * 
- * Fetch activities from Intervals.icu with caching
+ * Fetch wellness data from Intervals.icu with caching
  * 
  * Query params:
- * - daysBack: Number of days to fetch (default: 30, max: 120)
- * - limit: Max activities to return (default: 50, max: 200)
+ * - days: Number of days to fetch (default: 30, max: 90)
  * 
- * Returns: Array of Intervals.icu activities
+ * Returns: Array of wellness data (HRV, RHR, sleep, etc.)
  * 
  * Caching: Results cached for 5 minutes per user
  */
@@ -39,18 +38,14 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     const { userId, athleteId } = auth;
     
     // Parse query parameters
-    const daysBack = Math.min(
-      parseInt(event.queryStringParameters?.daysBack || "30"),
-      120 // Intervals allows longer history
-    );
-    const limit = Math.min(
-      parseInt(event.queryStringParameters?.limit || "50"),
-      200
+    const days = Math.min(
+      parseInt(event.queryStringParameters?.days || "30"),
+      90
     );
 
-    console.log(`[API Intervals Activities] Request: athleteId=${athleteId}, daysBack=${daysBack}, limit=${limit}`);
+    console.log(`[API Intervals Wellness] Request: athleteId=${athleteId}, days=${days}`);
 
-    // Get Intervals.icu credentials from database
+    // Get Intervals.icu credentials
     const athlete = await withDb(async (db) => {
       const { rows } = await db.query(
         `SELECT intervals_athlete_id, intervals_api_key FROM athlete WHERE id = $1`,
@@ -73,16 +68,16 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - daysBack);
+    startDate.setDate(startDate.getDate() - days);
 
     // Fetch from Intervals.icu API
-    const url = `https://intervals.icu/api/v1/athlete/${athlete.intervals_athlete_id}/activities`;
+    const url = `https://intervals.icu/api/v1/athlete/${athlete.intervals_athlete_id}/wellness`;
     const params = new URLSearchParams({
       oldest: startDate.toISOString().split('T')[0],
       newest: endDate.toISOString().split('T')[0]
     });
 
-    console.log(`[API Intervals Activities] Fetching from: ${url}?${params}`);
+    console.log(`[API Intervals Wellness] Fetching from: ${url}?${params}`);
 
     const response = await fetch(`${url}?${params}`, {
       headers: {
@@ -91,23 +86,20 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     });
 
     if (!response.ok) {
-      console.error(`[API Intervals Activities] Intervals API error: ${response.status}`);
+      console.error(`[API Intervals Wellness] Intervals API error: ${response.status}`);
       return {
         statusCode: response.status,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          error: "Failed to fetch from Intervals.icu",
+          error: "Failed to fetch wellness data from Intervals.icu",
           status: response.status
         })
       };
     }
 
-    const activities = await response.json();
-    
-    // Limit results
-    const limitedActivities = activities.slice(0, limit);
+    const wellness = await response.json();
 
-    console.log(`[API Intervals Activities] Fetched ${limitedActivities.length} activities from Intervals.icu`);
+    console.log(`[API Intervals Wellness] Fetched ${wellness.length} wellness entries from Intervals.icu`);
 
     // Return with cache headers (5 minutes)
     return {
@@ -115,17 +107,16 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "private, max-age=300", // 5 minutes cache
-        "X-Cache": "MISS", // Indicates this was fetched from Intervals
+        "X-Cache": "MISS",
         "X-Source": "intervals.icu",
-        "X-Activity-Count": limitedActivities.length.toString()
+        "X-Wellness-Count": wellness.length.toString()
       },
       body: JSON.stringify({
-        activities: limitedActivities,
+        wellness,
         metadata: {
           athleteId: athlete.intervals_athlete_id,
-          daysBack,
-          limit,
-          count: limitedActivities.length,
+          days,
+          count: wellness.length,
           source: "intervals.icu",
           cachedUntil: new Date(Date.now() + 300000).toISOString()
         }
@@ -133,13 +124,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     };
 
   } catch (error: any) {
-    console.error("[API Intervals Activities] Error:", error);
+    console.error("[API Intervals Wellness] Error:", error);
     
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        error: "Failed to fetch activities from Intervals.icu",
+        error: "Failed to fetch wellness data from Intervals.icu",
         message: error.message 
       })
     };
