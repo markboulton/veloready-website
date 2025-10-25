@@ -159,18 +159,27 @@ export async function handler(event: HandlerEvent) {
       console.log(`[Strava Token Exchange] Session created for iOS app (expires in ${expiresIn}s)`);
     }
 
-    // Return success with athlete ID, user_id, and Supabase session tokens
+    // Redirect to iOS app with tokens as query parameters
+    const redirectParams = new URLSearchParams({
+      ok: "1",
+      athlete_id: data.athlete.id.toString(),
+      user_id: userId,
+      state: state || "",
+      ...(accessToken && { access_token: accessToken }),
+      ...(refreshToken && { refresh_token: refreshToken }),
+      expires_in: expiresIn.toString()
+    });
+    
+    const redirectURL = `veloready://oauth/strava/done?${redirectParams.toString()}`;
+    console.log(`[Strava Token Exchange] Redirecting to iOS app: ${redirectURL.substring(0, 100)}...`);
+    
     return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ok: 1,
-        athlete_id: data.athlete.id.toString(),
-        user_id: userId,
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_in: expiresIn
-      })
+      statusCode: 302,
+      headers: {
+        "Location": redirectURL,
+        "Content-Type": "text/html"
+      },
+      body: `<html><body>Redirecting to app...</body></html>`
     };
 
   } catch (error) {
