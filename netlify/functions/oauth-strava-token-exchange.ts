@@ -139,14 +139,37 @@ export async function handler(event: HandlerEvent) {
     await db.end();
     console.log(`[Strava Token Exchange] Credentials stored for athlete ${data.athlete.id} with user_id ${userId}`);
 
-    // Return success with athlete ID and user_id
+    // Sign in the user to get a session token for the iOS app
+    const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    let accessToken = null;
+    let refreshToken = null;
+    let expiresIn = 3600;
+
+    if (sessionError) {
+      console.error(`[Strava Token Exchange] Failed to create session:`, sessionError);
+      // Continue anyway - app can still work with athlete_id
+    } else if (sessionData?.session) {
+      accessToken = sessionData.session.access_token;
+      refreshToken = sessionData.session.refresh_token;
+      expiresIn = sessionData.session.expires_in || 3600;
+      console.log(`[Strava Token Exchange] Session created for iOS app (expires in ${expiresIn}s)`);
+    }
+
+    // Return success with athlete ID, user_id, and Supabase session tokens
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ok: 1,
         athlete_id: data.athlete.id.toString(),
-        user_id: userId
+        user_id: userId,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: expiresIn
       })
     };
 

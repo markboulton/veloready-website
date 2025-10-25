@@ -237,7 +237,7 @@
         log(`Backend response: ${JSON.stringify(data)}`);
 
         // Extract response data
-        const { ok, athlete_id, error: backendError } = data;
+        const { ok, athlete_id, user_id, access_token, refresh_token, expires_in, error: backendError } = data;
 
         if (backendError || ok === 0) {
           log(`Backend error: ${backendError}`, 'error');
@@ -249,11 +249,25 @@
           return;
         }
 
-        // Success! Build the deep link back to the app
+        // Success! Build the deep link back to the app with Supabase tokens
         // Use custom URL scheme so ASWebAuthenticationSession can capture it
-        const deepLink = `veloready://auth/strava/done?ok=1&state=${encodeURIComponent(state)}&athlete_id=${encodeURIComponent(athlete_id || '')}`;
+        let deepLink = `veloready://auth/strava/done?ok=1&state=${encodeURIComponent(state)}&athlete_id=${encodeURIComponent(athlete_id || '')}`;
         
-        log(`Success! Redirecting to app: ${deepLink}`);
+        // Add Supabase session tokens if available
+        if (access_token) {
+          deepLink += `&access_token=${encodeURIComponent(access_token)}`;
+        }
+        if (refresh_token) {
+          deepLink += `&refresh_token=${encodeURIComponent(refresh_token)}`;
+        }
+        if (expires_in) {
+          deepLink += `&expires_in=${encodeURIComponent(expires_in)}`;
+        }
+        if (user_id) {
+          deepLink += `&user_id=${encodeURIComponent(user_id)}`;
+        }
+        
+        log(`Success! Redirecting to app with tokens: ${deepLink.substring(0, 100)}...`);
         
         updateUI(
           '✅ Authentication Successful',

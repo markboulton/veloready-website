@@ -54,45 +54,7 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
       };
     }
 
-    // Check if it's a temporary token from iOS app (format: "temp_token_<athleteId>")
-    if (token.startsWith("temp_token_")) {
-      const athleteId = parseInt(token.replace("temp_token_", ""));
-      
-      if (isNaN(athleteId)) {
-        return {
-          statusCode: 401,
-          error: "Invalid temporary token format"
-        };
-      }
-      
-      console.log(`[Auth] 🔧 Using temporary token for athlete ${athleteId} (iOS app)`);
-      
-      // Fetch athlete and user_id from database
-      const athlete = await withDb(async (db) => {
-        const { rows } = await db.query(
-          `SELECT id, user_id FROM athlete WHERE id = $1`,
-          [athleteId]
-        );
-        return rows[0] || null;
-      });
-      
-      if (!athlete) {
-        console.error(`[Auth] No athlete found for ID: ${athleteId}`);
-        return {
-          statusCode: 404,
-          error: "Athlete profile not found"
-        };
-      }
-      
-      console.log(`[Auth] ✅ Authenticated with temp token: athlete ${athlete.id}`);
-      
-      return {
-        userId: athlete.user_id || `athlete_${athleteId}`,
-        athleteId: athlete.id
-      };
-    }
-
-    // Otherwise, validate as Supabase JWT
+    // Validate as Supabase JWT
     const supabase = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_ANON_KEY!,
