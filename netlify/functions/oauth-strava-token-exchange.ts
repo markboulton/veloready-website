@@ -175,53 +175,21 @@ export async function handler(event: HandlerEvent) {
       console.log(`[Strava Token Exchange] Session created for iOS app (expires in ${expiresIn}s)`);
     }
 
-    // Build deep link with tokens as query parameters
-    const redirectParams = new URLSearchParams({
-      ok: "1",
-      athlete_id: data.athlete.id.toString(),
-      user_id: userId,
-      state: state || "",
-      ...(accessToken && { access_token: accessToken }),
-      ...(refreshToken && { refresh_token: refreshToken }),
-      expires_in: expiresIn.toString()
-    });
+    // Return success with athlete ID, user_id, and Supabase session tokens
+    // The oauth-callback.html page will parse this JSON and redirect to the deep link
+    console.log(`[Strava Token Exchange] Returning tokens to oauth-callback.html`);
     
-    const deepLink = `veloready://oauth/strava/done?${redirectParams.toString()}`;
-    console.log(`[Strava Token Exchange] Redirecting to iOS app: ${deepLink.substring(0, 100)}...`);
-    
-    // Return HTML with JavaScript redirect (browsers can't handle custom schemes in 302 redirects)
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "text/html"
-      },
-      body: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Connecting to VeloReady...</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-align: center; padding: 50px; }
-    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <h2>✅ Connected to Strava!</h2>
-  <div class="spinner"></div>
-  <p>Opening VeloReady...</p>
-  <script>
-    // Redirect to iOS app
-    window.location.href = ${JSON.stringify(deepLink)};
-    
-    // Fallback if redirect doesn't work after 2 seconds
-    setTimeout(function() {
-      document.body.innerHTML = '<h2>⚠️ Unable to open app</h2><p>Please open VeloReady manually.</p>';
-    }, 2000);
-  </script>
-</body>
-</html>`
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ok: 1,
+        athlete_id: data.athlete.id.toString(),
+        user_id: userId,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: expiresIn
+      })
     };
 
   } catch (error) {
