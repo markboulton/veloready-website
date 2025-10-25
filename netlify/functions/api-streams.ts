@@ -1,7 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { getStreams } from "../lib/strava";
 import { getStore } from "@netlify/blobs";
-import { authenticate, optionalAuth } from "../lib/auth";
+import { authenticate } from "../lib/auth";
 import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
@@ -36,16 +36,17 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   }
 
   try {
-    // Try optional authentication (supports both authenticated and legacy hardcoded athlete)
-    const auth = await optionalAuth(event);
-    
-    // If no auth header, fall back to hardcoded athlete ID (TEMPORARY - for iOS app compatibility)
-    const athleteId = auth?.athleteId || 104662;
-    const userId = auth?.userId || null;
-    
-    if (!auth) {
-      console.log(`[API Streams] ⚠️ Using hardcoded athlete ID (no auth header) - athleteId=${athleteId}`);
+    // Authenticate user and get athlete ID
+    const auth = await authenticate(event);
+    if ('error' in auth) {
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
     }
+    
+    const { userId, athleteId } = auth;
 
     // Extract activity ID from path
     const pathParts = event.path.split('/');
