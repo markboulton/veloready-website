@@ -1,6 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb } from "../lib/db";
 import { getStore } from "@netlify/blobs";
+import { authenticate } from "../lib/auth";
 
 /**
  * GET /api/intervals/streams/:activityId
@@ -27,6 +28,18 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   }
 
   try {
+    // Authenticate user and get athlete ID
+    const auth = await authenticate(event);
+    if ('error' in auth) {
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
+    }
+    
+    const { userId, athleteId } = auth;
+
     // Extract activity ID from path
     const pathParts = event.path.split('/');
     const activityId = pathParts[pathParts.length - 1];
@@ -39,10 +52,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       };
     }
 
-    console.log(`[API Intervals Streams] Request for activity: ${activityId}`);
-
-    // TODO: Get athlete ID from authenticated session
-    const athleteId = 104662;
+    console.log(`[API Intervals Streams] Request for activity: ${activityId} (athlete: ${athleteId})`);
 
     // Get Intervals.icu credentials
     const athlete = await withDb(async (db) => {
@@ -73,7 +83,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           statusCode: 200,
           headers: {
             "Content-Type": "application/json",
-            "Cache-Control": "public, max-age=86400", // 24 hours
+            "Cache-Control": "private, max-age=86400", // 24 hours (user-specific)
             "X-Cache": "HIT",
             "X-Source": "intervals.icu"
           },
@@ -128,7 +138,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400", // 24 hours
+        "Cache-Control": "private, max-age=86400", // 24 hours (user-specific)
         "X-Cache": "MISS",
         "X-Source": "intervals.icu"
       },

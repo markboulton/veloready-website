@@ -1,6 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb, getAthlete } from "../lib/db";
 import { listActivitiesSince } from "../lib/strava";
+import { authenticate } from "../lib/auth";
 
 /**
  * GET /api/activities
@@ -26,9 +27,17 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   }
 
   try {
-    // TODO: Get athlete ID from authenticated session
-    // For now, using Mark's athlete ID (should be replaced with session auth)
-    const athleteId = 104662;
+    // Authenticate user and get athlete ID
+    const auth = await authenticate(event);
+    if ('error' in auth) {
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
+    }
+    
+    const { userId, athleteId } = auth;
     
     // Parse query parameters
     const daysBack = Math.min(
@@ -78,16 +87,20 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     console.log(`[API Activities] Fetched ${allActivities.length} activities from Strava (${page} pages)`);
 
     // Return with cache headers (1 hour for better scaling)
+    // Predictive pre-fetching: include URLs for top 3 most recent activities
+    const prefetchUrls = allActivities.slice(0, 3).map(a => `/api/streams/${a.id}`);
+
     return {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=3600", // 1 hour cache (Phase 3 optimization)
+        "Cache-Control": "private, max-age=3600", // 1 hour cache (user-specific)
         "X-Cache": "MISS", // Indicates this was fetched from Strava
         "X-Activity-Count": allActivities.length.toString()
       },
       body: JSON.stringify({
         activities: allActivities,
+        prefetchUrls, // iOS app can prefetch these in background
         metadata: {
           athleteId,
           daysBack,

@@ -1,6 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { getStreams } from "../lib/strava";
 import { getStore } from "@netlify/blobs";
+import { authenticate } from "../lib/auth";
 
 /**
  * GET /api/streams/:activityId
@@ -13,10 +14,11 @@ import { getStore } from "@netlify/blobs";
  * Returns: Strava streams data
  * 
  * Caching Strategy:
- * - Layer 1: Netlify Blobs (24 hours) - compliant with Strava 7-day rule
- * - Layer 2: Strava API (on-demand)
+ * - Layer 1: HTTP Cache-Control (24 hours) - CDN/browser cache
+ * - Layer 2: Netlify Blobs (persistent) - backend cache
+ * - Layer 3: Strava API (on-demand)
  * 
- * This allows iOS app to have its own local cache (7 days) while backend stays compliant
+ * Compliant with Strava 7-day cache rule. iOS app can cache locally for 7 days.
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   // Only allow GET requests
@@ -29,6 +31,18 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   }
 
   try {
+    // Authenticate user and get athlete ID
+    const auth = await authenticate(event);
+    if ('error' in auth) {
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
+    }
+    
+    const { userId, athleteId } = auth;
+
     // Extract activity ID from path
     const pathParts = event.path.split('/');
     const activityId = pathParts[pathParts.length - 1];
@@ -41,11 +55,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       };
     }
 
-    console.log(`[API Streams] Request for activity: ${activityId}`);
-
-    // TODO: Get athlete ID from authenticated session
-    // For now, using Mark's athlete ID
-    const athleteId = 104662;
+    console.log(`[API Streams] Request for activity: ${activityId} (athlete: ${athleteId})`);
 
     // Try Netlify Blobs cache first (24-hour TTL)
     let cached = null;

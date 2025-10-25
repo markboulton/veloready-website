@@ -1,5 +1,6 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb } from "../lib/db";
+import { authenticate } from "../lib/auth";
 
 /**
  * GET /api/intervals/wellness
@@ -24,8 +25,17 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   }
 
   try {
-    // TODO: Get athlete ID from authenticated session
-    const athleteId = 104662;
+    // Authenticate user and get athlete ID
+    const auth = await authenticate(event);
+    if ('error' in auth) {
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
+    }
+    
+    const { userId, athleteId } = auth;
     
     // Parse query parameters
     const days = Math.min(
