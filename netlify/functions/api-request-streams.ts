@@ -93,6 +93,23 @@ export async function handler(event: HandlerEvent) {
       }
     });
 
+    // Log successful API call to audit_log
+    if (response.ok) {
+      try {
+        await withDb(async (c) => {
+          const { rows } = await c.query(`SELECT user_id FROM athlete WHERE id = $1`, [athleteId]);
+          const userId = rows[0]?.user_id || null;
+          await c.query(
+            `INSERT INTO audit_log(kind, ref_id, note, athlete_id, user_id) VALUES ($1, $2, $3, $4, $5)`,
+            ['api', athleteId, 'streams:request', athleteId, userId]
+          );
+        });
+      } catch (logError) {
+        console.error(`[Streams API] Failed to log API call:`, logError);
+        // Don't fail the request if logging fails
+      }
+    }
+
     if (!response.ok) {
       console.error(`[Streams API] Strava API error: ${response.status} ${response.statusText}`);
       return {

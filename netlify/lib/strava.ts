@@ -1,10 +1,10 @@
 import { ENV } from "./env";
-import { withDb, getAthlete, saveTokens } from "./db";
-import { Client } from "pg";
+import { withDb, getAthlete, saveTokens } from "./db-pooled";
+import { PoolClient } from "pg";
 
 type Tokens = { access_token: string; refresh_token: string; expires_at: number; };
 
-async function refreshTokens(c: Client, athleteId: number, refreshToken: string): Promise<Tokens> {
+async function refreshTokens(c: PoolClient, athleteId: number, refreshToken: string): Promise<Tokens> {
   const body = new URLSearchParams({
     client_id: ENV.STRAVA_CLIENT_ID,
     client_secret: ENV.STRAVA_CLIENT_SECRET,
@@ -15,6 +15,27 @@ async function refreshTokens(c: Client, athleteId: number, refreshToken: string)
   const data = await res.json();
   await saveTokens(c, athleteId, data.access_token, data.refresh_token, data.expires_at, []);
   return { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: data.expires_at };
+}
+
+/**
+ * Log API call to audit_log for tracking metrics
+ */
+async function logApiCall(athleteId: number, endpoint: string): Promise<void> {
+  try {
+    await withDb(async (c) => {
+      // Get user_id from athlete for RLS compliance
+      const { rows } = await c.query(`SELECT user_id FROM athlete WHERE id = $1`, [athleteId]);
+      const userId = rows[0]?.user_id || null;
+
+      await c.query(
+        `INSERT INTO audit_log(kind, ref_id, note, athlete_id, user_id) VALUES ($1, $2, $3, $4, $5)`,
+        ['api', String(athleteId), endpoint, athleteId, userId]
+      );
+    });
+  } catch (error) {
+    console.error(`[Strava API] Failed to log API call to audit_log:`, error);
+    // Don't throw - logging failures shouldn't break API calls
+  }
 }
 
 export async function withStravaAccess<T>(athleteId: number, fn: (token: string) => Promise<T>) {
@@ -34,26 +55,38 @@ export async function withStravaAccess<T>(athleteId: number, fn: (token: string)
 }
 
 export async function getActivity(athleteId: number, activityId: number) {
-  return withStravaAccess(athleteId, async (token) => {
+  const result = await withStravaAccess(athleteId, async (token) => {
     const res = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    if (res.ok) {
+      await logApiCall(athleteId, 'activities');
+    }
     return res.json();
   });
+  return result;
 }
 
 export async function getStreams(athleteId: number, activityId: number) {
-  return withStravaAccess(athleteId, async (token) => {
+  const result = await withStravaAccess(athleteId, async (token) => {
     const url = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate,cadence,watts&key_by_type=true`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }});
+    if (res.ok) {
+      await logApiCall(athleteId, 'streams');
+    }
     return res.json();
   });
+  return result;
 }
 
 export async function listActivitiesSince(athleteId: number, afterEpochSec: number, page: number, perPage = 200) {
-  return withStravaAccess(athleteId, async (token) => {
+  const result = await withStravaAccess(athleteId, async (token) => {
     const url = `https://www.strava.com/api/v3/athlete/activities?after=${afterEpochSec}&page=${page}&per_page=${perPage}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }});
+    if (res.ok) {
+      await logApiCall(athleteId, 'activities:list');
+    }
     return res.json();
   });
+  return result;
 }
