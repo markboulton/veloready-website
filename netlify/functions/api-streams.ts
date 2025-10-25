@@ -2,6 +2,7 @@ import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { getStreams } from "../lib/strava";
 import { getStore } from "@netlify/blobs";
 import { authenticate } from "../lib/auth";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
  * GET /api/streams/:activityId
@@ -21,6 +22,10 @@ import { authenticate } from "../lib/auth";
  * Compliant with Strava 7-day cache rule. iOS app can cache locally for 7 days.
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
+  // Rate limiting: 60 requests per minute per client
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.STANDARD);
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Only allow GET requests
   if (event.httpMethod !== "GET") {
     return {

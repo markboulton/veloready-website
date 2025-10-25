@@ -1,14 +1,22 @@
+import { HandlerEvent } from "@netlify/functions";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
+
 /**
  * Strava OAuth Start Endpoint
- * 
+ *
  * Redirects to Strava's authorization page.
  * The state parameter is generated and validated by the iOS app.
- * 
+ *
  * Query params:
  *   - state: CSRF token from app
  *   - redirect: Callback URL (should be /oauth/strava/callback)
  */
-export async function handler(event) {
+export async function handler(event: HandlerEvent) {
+  // Rate limiting: 10 requests per minute (prevent OAuth abuse)
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.OAUTH);
+  if (rateLimitResponse) return rateLimitResponse;
+
+
   const url = new URL(event.rawUrl);
   const state = url.searchParams.get("state");
   const redirect = url.searchParams.get("redirect") || "https://veloready.app/oauth/strava/callback";

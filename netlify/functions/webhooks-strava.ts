@@ -1,14 +1,19 @@
 import { HandlerEvent } from "@netlify/functions";
 import { enqueueLive } from "../lib/queue";
 import { withDb } from "../lib/db-pooled";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 export async function handler(event: HandlerEvent) {
-  // Verification handshake
+  // Verification handshake (no rate limit for GET - Strava needs to verify)
   if (event.httpMethod === "GET") {
     const url = new URL(event.rawUrl);
     const challenge = url.searchParams.get("hub.challenge");
     return { statusCode: 200, body: JSON.stringify({ "hub.challenge": challenge }) };
   }
+
+  // Rate limiting: 100 requests per minute for POST webhooks
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.WEBHOOKS);
+  if (rateLimitResponse) return rateLimitResponse;
 
   // Handle event quickly (<2s)
   const body = JSON.parse(event.body || "{}");

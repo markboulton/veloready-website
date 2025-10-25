@@ -1,19 +1,25 @@
 import { HandlerEvent } from "@netlify/functions";
 import { withDb } from "../lib/db-pooled";
 import { ENV } from "../lib/env";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
  * On-demand Strava Streams API
- * 
+ *
  * Fetches activity streams (time, distance, altitude, heartrate, watts, cadence, etc.)
  * with privacy/visibility enforcement
- * 
+ *
  * Query params:
  *   - activity_id: Strava activity ID
  *   - athlete_id: Strava athlete ID (for auth check)
  *   - keys: comma-separated stream types (e.g., "time,distance,altitude,heartrate,watts")
  */
 export async function handler(event: HandlerEvent) {
+  // Rate limiting: 30 requests per minute (stricter - calls Strava API)
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.STRICT);
+  if (rateLimitResponse) return rateLimitResponse;
+
+
   try {
     const url = new URL(event.rawUrl);
     const activityId = url.searchParams.get("activity_id");

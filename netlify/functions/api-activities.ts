@@ -2,6 +2,7 @@ import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb, getAthlete } from "../lib/db-pooled";
 import { listActivitiesSince } from "../lib/strava";
 import { authenticate } from "../lib/auth";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
  * GET /api/activities
@@ -17,6 +18,10 @@ import { authenticate } from "../lib/auth";
  * Caching: Results cached for 1 hour per user
  */
 export async function handler(event: HandlerEvent, context: HandlerContext) {
+  // Rate limiting: 60 requests per minute per client
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.STANDARD);
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Only allow GET requests
   if (event.httpMethod !== "GET") {
     return {

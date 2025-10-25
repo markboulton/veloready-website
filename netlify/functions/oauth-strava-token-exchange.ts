@@ -1,22 +1,29 @@
 import fetch from "node-fetch";
 import { Client } from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { HandlerEvent } from "@netlify/functions";
+import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
  * Strava Token Exchange Endpoint
- * 
+ *
  * Called by the HTML callback page after receiving the OAuth code from Strava.
  * Exchanges the code for an access token and stores it in the database.
- * 
+ *
  * Query params:
  *   - code: OAuth authorization code from Strava
  *   - state: CSRF token (optional - already validated by app)
- * 
+ *
  * Returns:
  *   { "ok": 1, "athlete_id": "12345" } on success
  *   { "ok": 0, "error": "message" } on failure
  */
-export async function handler(event) {
+export async function handler(event: HandlerEvent) {
+  // Rate limiting: 10 requests per minute (prevent OAuth abuse)
+  const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.OAUTH);
+  if (rateLimitResponse) return rateLimitResponse;
+
+
   try {
     // Extract code and state from query params
     const url = new URL(event.rawUrl);
