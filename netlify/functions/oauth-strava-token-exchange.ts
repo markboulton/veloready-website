@@ -118,26 +118,42 @@ export async function handler(event: HandlerEvent) {
     }
 
     // Store credentials in database with user_id
-    const db = new Client({ connectionString: process.env.DATABASE_URL });
-    await db.connect();
-    
-    await db.query(
-      `INSERT INTO athlete (id, user_id, scopes, access_token, refresh_token, expires_at)
-       VALUES ($1, $2, $3, $4, $5, to_timestamp($6))
-       ON CONFLICT (id) DO UPDATE 
-       SET user_id=$2, access_token=$4, refresh_token=$5, expires_at=to_timestamp($6), scopes=$3`,
-      [
-        data.athlete.id,
-        userId,
-        data.scope?.split(",") || [],
-        data.access_token,
-        data.refresh_token,
-        data.expires_at
-      ]
-    );
-    
-    await db.end();
-    console.log(`[Strava Token Exchange] Credentials stored for athlete ${data.athlete.id} with user_id ${userId}`);
+    let db: Client | null = null;
+    try {
+      db = new Client({ connectionString: process.env.DATABASE_URL });
+      console.log(`[Strava Token Exchange] Connecting to database...`);
+      await db.connect();
+      console.log(`[Strava Token Exchange] Database connected successfully`);
+      
+      await db.query(
+        `INSERT INTO athlete (id, user_id, scopes, access_token, refresh_token, expires_at)
+         VALUES ($1, $2, $3, $4, $5, to_timestamp($6))
+         ON CONFLICT (id) DO UPDATE 
+         SET user_id=$2, access_token=$4, refresh_token=$5, expires_at=to_timestamp($6), scopes=$3`,
+        [
+          data.athlete.id,
+          userId,
+          data.scope?.split(",") || [],
+          data.access_token,
+          data.refresh_token,
+          data.expires_at
+        ]
+      );
+      
+      console.log(`[Strava Token Exchange] Credentials stored for athlete ${data.athlete.id} with user_id ${userId}`);
+    } catch (dbError: any) {
+      console.error(`[Strava Token Exchange] Database error:`, dbError?.message || dbError);
+      // Continue anyway - app can still work with athlete_id and Supabase session
+      console.log(`[Strava Token Exchange] Continuing without database storage...`);
+    } finally {
+      if (db) {
+        try {
+          await db.end();
+        } catch (e) {
+          console.error(`[Strava Token Exchange] Error closing database:`, e);
+        }
+      }
+    }
 
     // Sign in the user to get a session token for the iOS app
     const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
