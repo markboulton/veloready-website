@@ -107,7 +107,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         activities: allActivities,
         prefetchUrls, // iOS app can prefetch these in background
         metadata: {
-          athleteId,
+          athleteId: Number(athleteId), // Ensure it's a number, not string
           daysBack,
           limit,
           count: allActivities.length,
