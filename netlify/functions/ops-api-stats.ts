@@ -10,13 +10,14 @@ export async function handler(event: HandlerEvent) {
   try {
     const stats = await withDb(async (c) => {
       // Get activity fetch count from audit log (proxy for API calls)
+      // Filter for last 24 hours only
       const { rows: apiCalls } = await c.query(
         `select 
            count(*) filter (where kind = 'api' and note like '%activities%') as activity_calls,
            count(*) filter (where kind = 'api' and note like '%streams%') as stream_calls,
            count(*) filter (where kind = 'api') as total_calls
          from audit_log 
-         where at > now() - interval '24 hours'`
+         where at > NOW() - interval '24 hours'`
       );
 
       // Estimate cache performance (activities created within 1 hour of webhook)
