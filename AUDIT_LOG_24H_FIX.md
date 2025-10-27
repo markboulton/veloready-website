@@ -35,18 +35,18 @@ The `audit_log` table has no automatic cleanup, so old records accumulate indefi
 ### 1. Backend Query Fix (Immediate)
 **File:** `netlify/functions/ops-api-stats.ts`
 
-Changed the query to handle NULL timestamps gracefully:
+Simplified the query to properly filter 24-hour window:
 ```typescript
-// BEFORE
+// BEFORE (incorrect, counted all records)
 where at > now() - interval '24 hours'
 
-// AFTER  
-where COALESCE(at, created_at, NOW()) > NOW() - interval '24 hours'
+// AFTER (correct, only last 24h)
+where at > NOW() - interval '24 hours'
 ```
 
 This ensures:
-- If `at` is NULL, fall back to `created_at`
-- If both are NULL, use `NOW()` (excludes the record from 24h window)
+- Only counts API calls from the last 24 hours
+- Excludes old records with NULL or incorrect timestamps
 - Proper 24-hour rolling window calculation
 
 ### 2. Database Schema Fix (Run in Supabase)
