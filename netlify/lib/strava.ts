@@ -91,10 +91,13 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
     // Check cache first
     const cached = await blobStore.get(cacheKey);
     if (cached) {
+      console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
       return JSON.parse(cached);
     }
+    console.log(`[Strava Cache] MISS for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
   } catch (e) {
     // Cache miss or error, proceed to fetch from Strava
+    console.log(`[Strava Cache] ERROR: ${e}`);
   }
   
   const result = await withStravaAccess(athleteId, async (token) => {
