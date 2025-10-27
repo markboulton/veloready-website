@@ -51,7 +51,8 @@ const DECISION_RULES = [
   "Rules:",
   "CRITICAL: If Body Stress Indicator = MODERATE or HIGH, override all other metrics -> suggest rest or max 30 TSS Z1 gentle spin. Educational tone: 'Your metrics suggest your body needs extra recovery today' not 'You are sick'.",
   "If HRV spike >100% (unusual autonomic response) -> metrics suggest your body needs extra recovery, consider rest or very light activity.",
-  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2%) -> suggest de-load <= 55 TSS (Z1-Z2).",
+  "HRV Priority: If HRV Delta >= +15%, this indicates strong recovery even if RHR is slightly elevated (common after hard training). Prioritize HRV over RHR in decision.",
+  "If Recovery < 50% OR (HRV Delta <= -2% AND RHR Delta >= +2% AND HRV Delta < +15%) -> suggest de-load <= 55 TSS (Z1-Z2).",
   "If Recovery >= 66% AND TSB >= 0 -> metrics support a productive session at top of target.",
   "If signals mixed -> cap around midpoint of target and emphasise fueling or recovery habit.",
   "Sleep Score interpretation: 85-100 = excellent, 70-84 = good, 60-69 = fair, <60 = poor. A score of 85+ is strong recovery even if duration is slightly below baseline.",
@@ -109,6 +110,10 @@ const FEW_SHOTS: FewShot[] = [
   {
     user: "Recovery: 78% | Sleep: 91/100 | HRV Delta: +2% | RHR Delta: 0% | TSB: +3 | Target TSS: 70-90 | Plan: none",
     assistant: "Great recovery score with excellent sleep quality (91/100). Ready for 85-90 TSS: Sweet Spot or Tempo intervals. Fuel well and keep intensity controlled."
+  },
+  {
+    user: "Recovery: 96% | Sleep: 98/100 | HRV Delta: +126% | RHR Delta: +9% | TSB: +37 | Target TSS: 40-52 | Plan: none",
+    assistant: "Excellent recovery with HRV way up (+126%) — your body is well-rested despite slightly elevated RHR. Ready for 50-52 TSS: Z2-Z3 ride 60-75 min. Fuel 60 g/h and stay hydrated."
   }
 ];
 
