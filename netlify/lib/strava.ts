@@ -92,7 +92,9 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
     const cached = await blobStore.get(cacheKey, { type: "text" });
     if (cached) {
       console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
-      return JSON.parse(cached);
+      const parsedData = JSON.parse(cached);
+      console.log(`[Strava Cache] Returning ${Array.isArray(parsedData) ? parsedData.length : 'non-array'} cached activities`);
+      return parsedData;
     }
     console.log(`[Strava Cache] MISS for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
   } catch (e) {
@@ -108,8 +110,11 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
       
       // Cache the result for 1 hour
       const data = await res.json();
+      console.log(`[Strava] Fetched ${Array.isArray(data) ? data.length : 'non-array'} activities from API`);
+      
       try {
         await blobStore.set(cacheKey, JSON.stringify(data), { metadata: { ttl: 3600 } });
+        console.log(`[Strava Cache] Cached ${Array.isArray(data) ? data.length : 'non-array'} activities`);
       } catch (e) {
         // Cache write failed, but we still have the data
         console.error(`[Strava] Failed to cache activities list: ${e}`);
@@ -117,7 +122,10 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
       
       return data;
     }
-    return res.json();
+    // Handle error responses
+    const errorData = await res.json();
+    console.error(`[Strava] API error (${res.status}):`, errorData);
+    throw new Error(`Strava API returned ${res.status}`);
   });
   return result;
 }
