@@ -1,6 +1,9 @@
 import { ENV } from "./env";
 import { withDb, getAthlete, saveTokens } from "./db-pooled";
+import { getStore } from "@netlify/blobs";
 import { PoolClient } from "pg";
+
+const blobStore = getStore("strava-cache");
 
 type Tokens = { access_token: string; refresh_token: string; expires_at: number; };
 
@@ -80,11 +83,36 @@ export async function getStreams(athleteId: number, activityId: number) {
 }
 
 export async function listActivitiesSince(athleteId: number, afterEpochSec: number, page: number, perPage = 200) {
+  // Cache key: activities:{athleteId}:{afterEpochSec}:{page}
+  // Cache for 1 hour to prevent repeated API calls from iOS app
+  const cacheKey = `activities:${athleteId}:${afterEpochSec}:${page}`;
+  
+  try {
+    // Check cache first
+    const cached = await blobStore.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    // Cache miss or error, proceed to fetch from Strava
+  }
+  
   const result = await withStravaAccess(athleteId, async (token) => {
     const url = `https://www.strava.com/api/v3/athlete/activities?after=${afterEpochSec}&page=${page}&per_page=${perPage}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }});
     if (res.ok) {
       await logApiCall(athleteId, 'activities:list');
+      
+      // Cache the result for 1 hour
+      const data = await res.json();
+      try {
+        await blobStore.set(cacheKey, JSON.stringify(data), { metadata: { ttl: 3600 } });
+      } catch (e) {
+        // Cache write failed, but we still have the data
+        console.error(`[Strava] Failed to cache activities list: ${e}`);
+      }
+      
+      return data;
     }
     return res.json();
   });
