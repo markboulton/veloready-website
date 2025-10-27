@@ -89,7 +89,7 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
   
   try {
     // Check cache first
-    const cached = await blobStore.get(cacheKey);
+    const cached = await blobStore.get(cacheKey, { type: "text" });
     if (cached) {
       console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
       return JSON.parse(cached);
