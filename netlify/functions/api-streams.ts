@@ -78,8 +78,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       
       const store = getStore({
         name: "streams-cache",
-        siteID,
-        token
+        ...(siteID && token ? { siteID, token } : {})
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       console.log(`[API Streams] Checking cache for key: ${cacheKey}`);
@@ -125,8 +124,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       
       const store = getStore({
         name: "streams-cache",
-        siteID,
-        token
+        ...(siteID && token ? { siteID, token } : {})
       });
       const cacheKey = `streams:${athleteId}:${activityId}`;
       

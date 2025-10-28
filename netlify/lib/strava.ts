@@ -3,7 +3,7 @@ import { withDb, getAthlete, saveTokens } from "./db-pooled";
 import { getStore } from "@netlify/blobs";
 import { PoolClient } from "pg";
 
-const blobStore = getStore("strava-cache");
+// Blobs store will be created dynamically in functions
 
 type Tokens = { access_token: string; refresh_token: string; expires_at: number; };
 
@@ -87,19 +87,42 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
   // Cache for 1 hour to prevent repeated API calls from iOS app
   const cacheKey = `activities:${athleteId}:${afterEpochSec}:${page}`;
   
+  // Create Blobs store dynamically
+  let blobStore;
   try {
-    // Check cache first
-    const cached = await blobStore.get(cacheKey, { type: "text" });
-    if (cached) {
-      console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
-      const parsedData = JSON.parse(cached);
-      console.log(`[Strava Cache] Returning ${Array.isArray(parsedData) ? parsedData.length : 'non-array'} cached activities`);
-      return parsedData;
+    const siteID = process.env.SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN 
+      || process.env.NETLIFY_TOKEN 
+      || process.env.NETLIFY_FUNCTIONS_TOKEN;
+    
+    if (siteID && token) {
+      blobStore = getStore({
+        name: "strava-cache",
+        siteID,
+        token
+      });
     }
-    console.log(`[Strava Cache] MISS for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
   } catch (e) {
-    // Cache miss or error, proceed to fetch from Strava
-    console.log(`[Strava Cache] ERROR: ${e}`);
+    console.log(`[Strava Cache] Blobs not available: ${e}`);
+  }
+  
+  if (blobStore) {
+    try {
+      // Check cache first
+      const cached = await blobStore.get(cacheKey, { type: "text" });
+      if (cached) {
+        console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
+        const parsedData = JSON.parse(cached);
+        console.log(`[Strava Cache] Returning ${Array.isArray(parsedData) ? parsedData.length : 'non-array'} cached activities`);
+        return parsedData;
+      }
+      console.log(`[Strava Cache] MISS for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
+    } catch (e) {
+      // Cache miss or error, proceed to fetch from Strava
+      console.log(`[Strava Cache] ERROR: ${e}`);
+    }
+  } else {
+    console.log(`[Strava Cache] Blobs not available - skipping cache check`);
   }
   
   const result = await withStravaAccess(athleteId, async (token) => {
@@ -108,16 +131,20 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
     if (res.ok) {
       await logApiCall(athleteId, 'activities:list');
       
-      // Cache the result for 1 hour
+      // Cache the result for 1 hour if Blobs is available
       const data = await res.json();
       console.log(`[Strava] Fetched ${Array.isArray(data) ? data.length : 'non-array'} activities from API`);
       
-      try {
-        await blobStore.set(cacheKey, JSON.stringify(data), { metadata: { ttl: 3600 } });
-        console.log(`[Strava Cache] Cached ${Array.isArray(data) ? data.length : 'non-array'} activities`);
-      } catch (e) {
-        // Cache write failed, but we still have the data
-        console.error(`[Strava] Failed to cache activities list: ${e}`);
+      if (blobStore) {
+        try {
+          await blobStore.set(cacheKey, JSON.stringify(data), { metadata: { ttl: 3600 } });
+          console.log(`[Strava Cache] Cached ${Array.isArray(data) ? data.length : 'non-array'} activities`);
+        } catch (e) {
+          // Cache write failed, but we still have the data
+          console.log(`[Strava] Failed to cache activities list: ${e}`);
+        }
+      } else {
+        console.log(`[Strava Cache] Blobs not available - skipping cache write`);
       }
       
       return data;
