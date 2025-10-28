@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { TestHelpers } from '../helpers/testHelpers'
-import { handler as oauthStart } from '../../netlify/functions/oauth-strava-start'
-import { handler as oauthTokenExchange } from '../../netlify/functions/oauth-strava-token-exchange'
+import { testStravaOAuthStartHandler as oauthStart } from '../helpers/testHandlers'
+import { testStravaOAuthCallbackHandler as oauthTokenExchange } from '../helpers/testHandlers'
 
 describe('OAuth: Strava Authentication', () => {
   let testUser: any
