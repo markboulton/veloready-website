@@ -13,13 +13,24 @@
     "pg": "^8.16.3"
   },
   "devDependencies": {
-    "@types/node": "^22.5.4",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.18.12",
+    "@vitest/ui": "^4.0.4",
+    "dotenv": "^17.2.3",
+    "jest": "^30.2.0",
+    "msw": "^2.11.6",
     "netlify-cli": "^17.31.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.0.4"
   },
   "scripts": {
     "dev": "netlify dev",
     "start": "netlify dev",
-    "build": "echo \"No build step\""
+    "build": "echo \"No build step\"",
+    "test": "vitest",
+    "test:integration": "vitest run tests/integration",
+    "test:unit": "vitest run tests/unit",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui"
   }
 }

@@ -1,0 +1,28 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running ESLint..."
+npm run lint
+
+if [ $? -ne 0 ]; then
+  echo "❌ ESLint failed. Fix errors and try again."
+  exit 1
+fi
+
+echo "Running TypeScript type check..."
+npx tsc --noEmit
+
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed. Fix errors and try again."
+  exit 1
+fi
+
+echo "Running integration tests..."
+npm run test:integration
+
+if [ $? -ne 0 ]; then
+  echo "❌ Integration tests failed. Fix errors and try again."
+  exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
