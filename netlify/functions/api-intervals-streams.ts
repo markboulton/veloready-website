@@ -72,26 +72,40 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     }
 
     // Check Netlify Blobs cache first (24-hour TTL)
-    const store = getStore("streams-cache");
+    const siteID = process.env.SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN 
+      || process.env.NETLIFY_TOKEN 
+      || process.env.NETLIFY_FUNCTIONS_TOKEN;
+    
     const cacheKey = `intervals:streams:${athlete.intervals_athlete_id}:${activityId}`;
     
-    try {
-      const cached = await store.get(cacheKey, { type: "json" });
-      if (cached) {
-        console.log(`[API Intervals Streams] Cache HIT for ${activityId}`);
-        return {
-          statusCode: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "private, max-age=86400", // 24 hours (user-specific)
-            "X-Cache": "HIT",
-            "X-Source": "intervals.icu"
-          },
-          body: JSON.stringify(cached)
-        };
+    let cached = null;
+    if (siteID && token) {
+      try {
+        const store = getStore({
+          name: "streams-cache",
+          siteID,
+          token
+        });
+        cached = await store.get(cacheKey, { type: "json" });
+        if (cached) {
+          console.log(`[API Intervals Streams] Cache HIT for ${activityId}`);
+          return {
+            statusCode: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Cache-Control": "private, max-age=86400", // 24 hours (user-specific)
+              "X-Cache": "HIT",
+              "X-Source": "intervals.icu"
+            },
+            body: JSON.stringify(cached)
+          };
+        }
+      } catch (cacheError) {
+        console.log(`[API Intervals Streams] Cache miss for ${activityId}:`, cacheError);
       }
-    } catch (cacheError) {
-      console.log(`[API Intervals Streams] Cache miss for ${activityId}:`, cacheError);
+    } else {
+      console.log(`[API Intervals Streams] Blobs not available - skipping cache check`);
     }
 
     // Cache miss - fetch from Intervals.icu
@@ -118,20 +132,29 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
 
     const streams = await response.json();
 
-    // Cache in Netlify Blobs (24 hours)
-    try {
-      await store.setJSON(cacheKey, streams, {
-        metadata: {
-          athleteId: athlete.intervals_athlete_id,
-          activityId,
-          source: "intervals.icu",
-          cachedAt: new Date().toISOString()
-        }
-      });
-      console.log(`[API Intervals Streams] Cached streams for ${activityId}`);
-    } catch (cacheError) {
-      console.error(`[API Intervals Streams] Failed to cache:`, cacheError);
-      // Continue anyway - caching is not critical
+    // Cache in Netlify Blobs (24 hours) if available
+    if (siteID && token) {
+      try {
+        const store = getStore({
+          name: "streams-cache",
+          siteID,
+          token
+        });
+        await store.setJSON(cacheKey, streams, {
+          metadata: {
+            athleteId: athlete.intervals_athlete_id,
+            activityId,
+            source: "intervals.icu",
+            cachedAt: new Date().toISOString()
+          }
+        });
+        console.log(`[API Intervals Streams] Cached streams for ${activityId}`);
+      } catch (cacheError) {
+        console.log(`[API Intervals Streams] Failed to cache:`, cacheError);
+        // Continue anyway - caching is not critical
+      }
+    } else {
+      console.log(`[API Intervals Streams] Blobs not available - skipping cache write`);
     }
 
     return {
