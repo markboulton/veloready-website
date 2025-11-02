@@ -1,0 +1,350 @@
+# VeloReady Backend - Windsurf Rules
+
+## Project Context
+Netlify serverless backend for VeloReady iOS app
+- Platform: Netlify Functions
+- Language: TypeScript
+- Database: Supabase (PostgreSQL)
+- Authentication: JWT (Supabase)
+- Testing: Vitest + MSW
+
+## 🔐 Authentication (CRITICAL)
+
+### JWT Authentication (STRICT)
+
+ALWAYS use JWT authentication helper:
+// ✅ CORRECT: Use authenticate() helper
+import { authenticate } from '../lib/auth';
+
+export default async (req: Request, context: Context) => {
+  const { userId, athleteId } = await authenticate(req);
+  // Use athleteId - NEVER hardcode!
+  const activities = await fetchActivities(athleteId);
+  return new Response(JSON.stringify({ activities }));
+};
+
+// ❌ FORBIDDEN: Hardcoded athlete IDs
+const athleteId = 104662;  // CRITICAL SECURITY BUG!
+const activities = await fetchActivities(athleteId);
+
+Authentication Flow:
+1. Client sends Authorization: Bearer <JWT>
+2. Function validates with Supabase (authenticate(req))
+3. Extracts user_id from JWT
+4. Fetches athlete_id from database
+5. Returns user-specific data
+
+User Format:
+- Email: strava-<athleteId>@veloready.app
+- RLS: Row-level security for data isolation
+
+Token Refresh:
+- Endpoint: /auth-refresh-token
+- Backend calls Supabase auth.refreshSession()
+- Returns new access_token, refresh_token
+
+## 🧪 Testing Architecture
+
+### MSW + Vitest Integration Tests
+
+Test Structure:
+tests/
+├── integration/
+│   ├── api.activities.test.ts
+│   ├── api.streams.test.ts
+│   ├── api.ai-brief.test.ts
+│   └── oauth.strava.test.ts
+├── helpers/
+│   └── testHelpers.ts
+└── mocks/
+    └── handlers.ts  # MSW request handlers
+
+Writing Tests:
+// ✅ CORRECT: Mock external APIs with MSW
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { setupServer } from 'msw/node'
+import { http, HttpResponse } from 'msw'
+
+const server = setupServer(
+  http.get('https://www.strava.com/api/v3/athlete/activities', () => {
+    return HttpResponse.json([
+      { id: 123, type: 'Ride', distance: 50000 }
+    ])
+  })
+)
+
+beforeAll(() => server.listen())
+afterAll(() => server.close())
+
+it('should fetch activities from Strava', async () => {
+  const activities = await fetchStravaActivities(token)
+  expect(activities).toHaveLength(1)
+  expect(activities[0].type).toBe('Ride')
+})
+
+Running Tests:
+npm test                    # All tests
+npm test api.activities    # Specific test file
+
+## 💾 Caching Strategy
+
+### HTTP Cache Headers
+
+Activities (1 hour):
+return new Response(JSON.stringify(data), {
+  status: 200,
+  headers: {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'max-age=3600',
+  },
+});
+
+Streams (24 hours - Strava compliant):
+headers: {
+  'Cache-Control': 'max-age=86400',
+}
+
+AI Briefs (User-specific):
+const cacheKey = `${user}:${isoDateUTC()}:${PROMPT_VERSION}:${suffix}`
+
+### Netlify Blobs (Multi-Layer Caching)
+
+// ✅ CORRECT: Proper Blob usage
+async function fetchWithCache(key: string) {
+  // 1. Check HTTP cache (browser/CDN)
+  
+  // 2. Check Netlify Blobs
+  const blob = await getStore('activities');
+  const cached = await blob.get(key, { type: 'text' });  // 'text', not 'json'!
+  if (cached) return JSON.parse(cached);
+  
+  // 3. Fetch from API
+  const fresh = await fetchFromAPI();
+  await blob.set(key, JSON.stringify(fresh));
+  return fresh;
+}
+
+// ❌ WRONG: Blob get() returns Blob, not string!
+const cached = await blob.get(key);  // Returns Blob
+const data = JSON.parse(cached);  // ERROR: Can't parse Blob!
+
+// ✅ CORRECT:
+const cached = await blob.get(key, { type: 'text' });  // Returns string
+const data = JSON.parse(cached);  // Works!
+
+Conditional Blob Store Creation:
+// ✅ CORRECT: Only create store when needed
+import { getStore } from '@netlify/blobs';
+
+let blobStore;
+try {
+  blobStore = getStore('activities');
+} catch (error) {
+  console.log('Blob store not available (local dev)');
+}
+
+if (blobStore) {
+  const cached = await blobStore.get(key, { type: 'text' });
+}
+
+Cache Layers:
+1. HTTP Cache-Control (browser/CDN) - 1-24 hours
+2. Netlify Blobs (persistent) - 7 days
+3. Strava/Intervals.icu API (fallback)
+
+## 🔗 OAuth & Deep Linking
+
+### Strava OAuth Flow
+
+// ✅ CORRECT: HTML + JS redirect (browsers support custom schemes in JS)
+export default async (req: Request) => {
+  // ... OAuth exchange ...
+  
+  return new Response(`
+    <html>
+      <script>
+        window.location.href = "veloready://oauth/strava/done?ok=1&athlete_id=${athleteId}&access_token=${token}&refresh_token=${refreshToken}";
+      </script>
+    </html>
+  `, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html' }
+  });
+};
+
+// ❌ WRONG: HTTP 302 redirect (browsers block custom schemes in redirects)
+return new Response(null, {
+  status: 302,
+  headers: {
+    Location: "veloready://oauth/strava/done?..."  // Fails in browser!
+  }
+});
+
+Why HTML + JS Works:
+- Browsers can't handle custom URL schemes in HTTP 302 redirects (security)
+- JavaScript window.location.href CAN trigger custom schemes
+- ASWebAuthenticationSession intercepts the deep link
+- iOS app receives tokens via callback
+
+## 📊 API Response Patterns
+
+### Standard Response Format
+
+// ✅ CORRECT: Consistent response structure
+return new Response(JSON.stringify({
+  success: true,
+  data: activities,
+  metadata: {
+    count: activities.length,
+    cached: false,
+    timestamp: new Date().toISOString()
+  }
+}), {
+  status: 200,
+  headers: {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'max-age=3600',
+  },
+});
+
+Error Handling:
+// ✅ CORRECT: Structured error responses
+return new Response(JSON.stringify({
+  success: false,
+  error: {
+    code: 'INVALID_TOKEN',
+    message: 'Authentication token is invalid or expired',
+    details: error.message
+  }
+}), {
+  status: 401,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+Predictive Pre-fetching:
+// ✅ CORRECT: Return prefetch URLs for iOS
+return new Response(JSON.stringify({
+  activities: activities,
+  prefetchUrls: activities.slice(0, 3).map(a => 
+    `/.netlify/functions/api-streams?activityId=${a.id}`
+  )
+}));
+
+## 🐛 Common Pitfalls
+
+1. Hardcoded Athlete IDs (CRITICAL)
+// ❌ FORBIDDEN
+const athleteId = 104662;
+
+// ✅ CORRECT
+const { athleteId } = await authenticate(req);
+
+2. Blob Type Mismatch
+// ❌ WRONG
+const cached = await blob.get(key);  // Returns Blob
+JSON.parse(cached);  // ERROR!
+
+// ✅ CORRECT
+const cached = await blob.get(key, { type: 'text' });
+JSON.parse(cached);  // Works!
+
+3. Missing Authentication
+// ❌ WRONG
+export default async (req: Request) => {
+  const activities = await fetchActivities(104662);  // No auth!
+}
+
+// ✅ CORRECT
+export default async (req: Request) => {
+  const { athleteId } = await authenticate(req);
+  const activities = await fetchActivities(athleteId);
+}
+
+4. HTTP 302 to Custom Scheme
+// ❌ WRONG
+return new Response(null, {
+  status: 302,
+  headers: { Location: "veloready://..." }
+});
+
+// ✅ CORRECT
+return new Response(`<script>window.location.href = "veloready://..."</script>`, {
+  status: 200,
+  headers: { 'Content-Type': 'text/html' }
+});
+
+5. Cache Key Inconsistency
+// ❌ WRONG
+const key1 = `activities_${athleteId}_${days}`;
+const key2 = `activities:${athleteId}:${days}`;  // Different format!
+
+// ✅ CORRECT
+const key = `activities:${athleteId}:${days}`;  // Consistent format
+
+## 📝 File Organization
+
+netlify/
+├── functions/                        # API endpoints
+│   ├── api-activities.ts             # Activities list
+│   ├── api-streams.ts                # Activity streams (power, HR, etc)
+│   ├── api-intervals-activities.ts   # Intervals.icu activities
+│   ├── api-intervals-streams.ts      # Intervals.icu streams
+│   ├── api-intervals-wellness.ts     # Wellness data
+│   ├── oauth-strava-token-exchange.ts # OAuth callback
+│   └── auth-refresh-token.ts         # Token refresh
+└── lib/
+    └── auth.ts                       # JWT authentication helper
+
+tests/
+├── integration/                      # Integration tests
+│   ├── api.activities.test.ts
+│   ├── api.streams.test.ts
+│   ├── api.ai-brief.test.ts
+│   └── oauth.strava.test.ts
+├── helpers/
+│   └── testHelpers.ts                # Test utilities
+└── mocks/
+    └── handlers.ts                   # MSW handlers
+
+## 🚀 Development Workflow
+
+Local Development:
+netlify dev  # Start local server
+npm test     # Run tests
+
+Before Committing:
+npm test                              # All tests pass
+npm run lint                          # No lint errors
+npm run type-check                    # TypeScript checks
+
+Deployment:
+git push origin main                  # Auto-deploys to Netlify
+
+## ✅ Code Quality Checklist
+
+Before submitting PR:
+- [ ] JWT authentication used (no hardcoded IDs)
+- [ ] Tests added/updated for new endpoints
+- [ ] Cache headers set appropriately
+- [ ] Error handling with structured responses
+- [ ] Blob store usage correct (type: 'text')
+- [ ] TypeScript types defined
+- [ ] No console.log in production code
+
+## 📊 Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Activities endpoint | <500ms |
+| Streams endpoint | <1s |
+| Cache hit rate | >80% |
+| API quota usage | Minimal |
+| Test execution | <30s |
+
+## 🎯 Key Principles
+
+1. Security first - JWT auth, no hardcoded IDs
+2. Cache aggressively - Multi-layer caching
+3. Test thoroughly - MSW + Vitest integration tests
+4. Handle errors gracefully - Structured error responses
+5. Monitor performance - Cache hit rates, response times
