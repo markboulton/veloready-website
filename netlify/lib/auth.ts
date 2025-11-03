@@ -6,17 +6,53 @@ import { withDb } from "./db";
  * Authentication helper for Netlify Functions
  * 
  * Extracts and validates JWT tokens from Supabase Auth
- * Returns authenticated user_id and athlete_id
+ * Returns authenticated user_id, athlete_id, and subscription tier information
  */
+
+// Subscription tier type
+export type SubscriptionTier = 'free' | 'trial' | 'pro';
+
+// Tier limits configuration
+export const TIER_LIMITS = {
+  free: {
+    daysBack: 90,
+    maxActivities: 100,
+    activitiesPerHour: 60,
+    streamsPerHour: 30,
+  },
+  trial: {
+    daysBack: 365,
+    maxActivities: 500,
+    activitiesPerHour: 300,
+    streamsPerHour: 100,
+  },
+  pro: {
+    daysBack: 365,
+    maxActivities: 500,
+    activitiesPerHour: 300,
+    streamsPerHour: 100,
+  },
+} as const;
 
 export interface AuthResult {
   userId: string;
   athleteId: number;
+  subscriptionTier: SubscriptionTier;
+  subscriptionExpires: Date | null;
 }
 
 export interface AuthError {
   statusCode: number;
   error: string;
+}
+
+/**
+ * Get tier limits for a given subscription tier
+ * @param tier - Subscription tier
+ * @returns Tier limits configuration
+ */
+export function getTierLimits(tier: SubscriptionTier) {
+  return TIER_LIMITS[tier];
 }
 
 /**
@@ -54,10 +90,10 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
       };
     }
 
-    // Validate as Supabase JWT
+    // Validate JWT using service role key for full access
     const supabase = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!,
       {
         auth: {
           autoRefreshToken: false,
@@ -76,14 +112,22 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
       };
     }
 
-    // Fetch athlete record by user_id
-    const athlete = await withDb(async (db) => {
-      const { rows } = await db.query(
-        `SELECT id FROM athlete WHERE user_id = $1`,
-        [user.id]
-      );
-      return rows[0] || null;
-    });
+    // Fetch athlete record and subscription in parallel
+    const [athlete, subscription] = await Promise.all([
+      withDb(async (db) => {
+        const { rows } = await db.query(
+          `SELECT id FROM athlete WHERE user_id = $1`,
+          [user.id]
+        );
+        return rows[0] || null;
+      }),
+      // Query subscription from Supabase
+      supabase
+        .from('user_subscriptions')
+        .select('subscription_tier, expires_at')
+        .eq('user_id', user.id)
+        .single()
+    ]);
 
     if (!athlete) {
       console.error(`[Auth] No athlete found for user_id: ${user.id}`);
@@ -93,11 +137,44 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
       };
     }
 
-    console.log(`[Auth] ✅ Authenticated user: ${user.id}, athlete: ${athlete.id}`);
+    // Determine subscription tier
+    let subscriptionTier: SubscriptionTier = 'free';
+    let subscriptionExpires: Date | null = null;
+
+    if (subscription.data && !subscription.error) {
+      const tier = subscription.data.subscription_tier as SubscriptionTier;
+      const expiresAt = subscription.data.expires_at;
+
+      // Check if subscription has expired
+      if (expiresAt) {
+        const expiryDate = new Date(expiresAt);
+        subscriptionExpires = expiryDate;
+        
+        if (expiryDate > new Date()) {
+          // Subscription is still active
+          subscriptionTier = tier;
+        } else {
+          // Subscription expired, downgrade to free
+          console.log(`[Auth] Subscription expired for user ${user.id}, downgrading to free`);
+          subscriptionTier = 'free';
+          subscriptionExpires = null;
+        }
+      } else {
+        // No expiry (lifetime or free tier)
+        subscriptionTier = tier;
+      }
+    } else {
+      // No subscription record found, default to free
+      console.log(`[Auth] No subscription found for user ${user.id}, defaulting to free`);
+    }
+
+    console.log(`[Auth] ✅ Authenticated user: ${user.id}, athlete: ${athlete.id}, tier: ${subscriptionTier}`);
 
     return {
       userId: user.id,
-      athleteId: athlete.id
+      athleteId: athlete.id,
+      subscriptionTier,
+      subscriptionExpires
     };
 
   } catch (error: any) {
