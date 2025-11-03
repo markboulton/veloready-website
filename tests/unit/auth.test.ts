@@ -10,6 +10,7 @@ describe('Auth Module', () => {
         maxActivities: 100,
         activitiesPerHour: 60,
         streamsPerHour: 30,
+        rateLimitPerHour: 60,
       });
     });
 
@@ -19,6 +20,7 @@ describe('Auth Module', () => {
         maxActivities: 500,
         activitiesPerHour: 300,
         streamsPerHour: 100,
+        rateLimitPerHour: 200,
       });
     });
 
@@ -28,6 +30,7 @@ describe('Auth Module', () => {
         maxActivities: 500,
         activitiesPerHour: 300,
         streamsPerHour: 100,
+        rateLimitPerHour: 200,
       });
     });
   });
@@ -118,6 +121,7 @@ describe('Auth Module', () => {
         expect(limits.maxActivities).toBeGreaterThan(0);
         expect(limits.activitiesPerHour).toBeGreaterThan(0);
         expect(limits.streamsPerHour).toBeGreaterThan(0);
+        expect(limits.rateLimitPerHour).toBeGreaterThan(0);
       });
     });
 
@@ -132,6 +136,7 @@ describe('Auth Module', () => {
       expect(TIER_LIMITS.free.maxActivities).toBeLessThan(TIER_LIMITS.pro.maxActivities);
       expect(TIER_LIMITS.free.activitiesPerHour).toBeLessThan(TIER_LIMITS.pro.activitiesPerHour);
       expect(TIER_LIMITS.free.streamsPerHour).toBeLessThan(TIER_LIMITS.pro.streamsPerHour);
+      expect(TIER_LIMITS.free.rateLimitPerHour).toBeLessThan(TIER_LIMITS.pro.rateLimitPerHour);
     });
   });
 });
