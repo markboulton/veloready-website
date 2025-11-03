@@ -1,11 +1,6 @@
-import { HandlerEvent } from '@netlify/functions';
+import { HandlerEvent, HandlerContext } from '@netlify/functions';
 import { authenticate } from '../lib/auth';
 import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || ''
-);
 
 interface SubscriptionSyncRequest {
   athlete_id: number;
@@ -19,7 +14,7 @@ interface SubscriptionSyncRequest {
   auto_renew?: boolean;
 }
 
-export default async (event: HandlerEvent) => {
+export async function handler(event: HandlerEvent, context: HandlerContext) {
   // Only allow POST
   if (event.httpMethod !== 'POST') {
     return {
@@ -42,6 +37,12 @@ export default async (event: HandlerEvent) => {
     }
     
     const { userId } = authResult;
+
+    // Initialize Supabase client with service role key (required for upsert operations)
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!
+    );
 
     // Parse request body
     const body: SubscriptionSyncRequest = JSON.parse(event.body || '{}');

@@ -148,6 +148,18 @@
   to = "/.netlify/functions/ai-ride-summary"
   status = 200
 
+# ===== SUBSCRIPTION ENDPOINTS =====
+
+[[redirects]]
+  from = "/subscription/sync"
+  to = "/.netlify/functions/subscription-sync"
+  status = 200
+
+[[redirects]]
+  from = "/auth-refresh-token"
+  to = "/.netlify/functions/auth-refresh-token"
+  status = 200
+
 # ===== SCHEDULED FUNCTIONS =====
 
 [[scheduled.functions]]
