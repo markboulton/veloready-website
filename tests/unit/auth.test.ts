@@ -10,7 +10,7 @@ describe('Auth Module', () => {
         maxActivities: 100,
         activitiesPerHour: 60,
         streamsPerHour: 30,
-        rateLimitPerHour: 60,
+        rateLimitPerHour: 100,
       });
     });
 
@@ -20,7 +20,7 @@ describe('Auth Module', () => {
         maxActivities: 500,
         activitiesPerHour: 300,
         streamsPerHour: 100,
-        rateLimitPerHour: 200,
+        rateLimitPerHour: 300,
       });
     });
 
@@ -30,7 +30,7 @@ describe('Auth Module', () => {
         maxActivities: 500,
         activitiesPerHour: 300,
         streamsPerHour: 100,
-        rateLimitPerHour: 200,
+        rateLimitPerHour: 300,
       });
     });
   });

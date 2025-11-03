@@ -19,21 +19,21 @@ export const TIER_LIMITS = {
     maxActivities: 100,
     activitiesPerHour: 60,
     streamsPerHour: 30,
-    rateLimitPerHour: 60, // 60 requests per hour
+    rateLimitPerHour: 100, // 100 requests per hour (allows ~15 on startup + normal usage)
   },
   trial: {
     daysBack: 365,
     maxActivities: 500,
     activitiesPerHour: 300,
     streamsPerHour: 100,
-    rateLimitPerHour: 200, // 200 requests per hour
+    rateLimitPerHour: 300, // 300 requests per hour
   },
   pro: {
     daysBack: 365,
     maxActivities: 500,
     activitiesPerHour: 300,
     streamsPerHour: 100,
-    rateLimitPerHour: 200, // 200 requests per hour
+    rateLimitPerHour: 300, // 300 requests per hour
   },
 } as const;
 
