@@ -1,7 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb, getAthlete } from "../lib/db-pooled";
 import { listActivitiesSince } from "../lib/strava";
-import { authenticate } from "../lib/auth";
+import { authenticate, getTierLimits } from "../lib/auth";
 import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
@@ -41,20 +41,36 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         body: JSON.stringify({ error: auth.error })
       };
     }
-    
-    const { userId, athleteId } = auth;
-    
-    // Parse query parameters
-    const daysBack = Math.min(
-      parseInt(event.queryStringParameters?.daysBack || "30"),
-      365 // Cap at 365 days (1 year of history)
-    );
-    const limit = Math.min(
-      parseInt(event.queryStringParameters?.limit || "50"),
-      500 // Increased from 200 to support historical ride charts
-    );
 
-    console.log(`[API Activities] Request: athleteId=${athleteId}, daysBack=${daysBack}, limit=${limit}`);
+    const { userId, athleteId, subscriptionTier } = auth;
+
+    // Parse query parameters
+    const requestedDays = parseInt(event.queryStringParameters?.daysBack || "30");
+    const requestedLimit = parseInt(event.queryStringParameters?.limit || "50");
+
+    // Get tier limits
+    const limits = getTierLimits(subscriptionTier);
+
+    // Check tier limits for daysBack
+    if (requestedDays > limits.daysBack) {
+      return {
+        statusCode: 403,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: 'TIER_LIMIT_EXCEEDED',
+          message: `Your ${subscriptionTier} plan allows access to ${limits.daysBack} days of data. Upgrade to access more history.`,
+          currentTier: subscriptionTier,
+          requestedDays: requestedDays,
+          maxDaysAllowed: limits.daysBack
+        })
+      };
+    }
+
+    // Cap values to tier limits
+    const daysBack = Math.min(requestedDays, limits.daysBack);
+    const limit = Math.min(requestedLimit, limits.maxActivities);
+
+    console.log(`[API Activities] Request: athleteId=${athleteId}, tier=${subscriptionTier}, daysBack=${daysBack}, limit=${limit}`);
 
     // Calculate timestamp for "after" parameter
     const afterTimestamp = Math.floor(Date.now() / 1000) - (daysBack * 24 * 3600);
@@ -108,6 +124,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         prefetchUrls, // iOS app can prefetch these in background
         metadata: {
           athleteId: Number(athleteId), // Ensure it's a number, not string
+          tier: subscriptionTier,
           daysBack,
           limit,
           count: allActivities.length,

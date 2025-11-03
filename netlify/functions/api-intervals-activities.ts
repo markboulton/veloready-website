@@ -1,6 +1,6 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb, getAthlete } from "../lib/db-pooled";
-import { authenticate } from "../lib/auth";
+import { authenticate, getTierLimits } from "../lib/auth";
 
 /**
  * GET /api/intervals/activities
@@ -35,20 +35,36 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         body: JSON.stringify({ error: auth.error })
       };
     }
-    
-    const { userId, athleteId } = auth;
-    
-    // Parse query parameters
-    const daysBack = Math.min(
-      parseInt(event.queryStringParameters?.daysBack || "30"),
-      120 // Intervals allows longer history
-    );
-    const limit = Math.min(
-      parseInt(event.queryStringParameters?.limit || "50"),
-      200
-    );
 
-    console.log(`[API Intervals Activities] Request: athleteId=${athleteId}, daysBack=${daysBack}, limit=${limit}`);
+    const { userId, athleteId, subscriptionTier } = auth;
+
+    // Parse query parameters
+    const requestedDays = parseInt(event.queryStringParameters?.daysBack || "30");
+    const requestedLimit = parseInt(event.queryStringParameters?.limit || "50");
+
+    // Get tier limits
+    const limits = getTierLimits(subscriptionTier);
+
+    // Check tier limits for daysBack
+    if (requestedDays > limits.daysBack) {
+      return {
+        statusCode: 403,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: 'TIER_LIMIT_EXCEEDED',
+          message: `Your ${subscriptionTier} plan allows access to ${limits.daysBack} days of data. Upgrade to access more history.`,
+          currentTier: subscriptionTier,
+          requestedDays: requestedDays,
+          maxDaysAllowed: limits.daysBack
+        })
+      };
+    }
+
+    // Cap values to tier limits
+    const daysBack = Math.min(requestedDays, limits.daysBack);
+    const limit = Math.min(requestedLimit, limits.maxActivities);
+
+    console.log(`[API Intervals Activities] Request: athleteId=${athleteId}, tier=${subscriptionTier}, daysBack=${daysBack}, limit=${limit}`);
 
     // Get Intervals.icu credentials from database
     const athlete = await withDb(async (db) => {
@@ -123,6 +139,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         activities: limitedActivities,
         metadata: {
           athleteId: athlete.intervals_athlete_id,
+          tier: subscriptionTier,
           daysBack,
           limit,
           count: limitedActivities.length,
