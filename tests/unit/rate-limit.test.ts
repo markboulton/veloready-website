@@ -27,9 +27,9 @@ const mockExpire = (upstashRedis as any).__mockExpire;
 vi.mock('../../netlify/lib/auth', () => ({
   getTierLimits: vi.fn((tier: string) => {
     const limits = {
-      free: { rateLimitPerHour: 60 },
-      trial: { rateLimitPerHour: 200 },
-      pro: { rateLimitPerHour: 200 },
+      free: { rateLimitPerHour: 100 },
+      trial: { rateLimitPerHour: 300 },
+      pro: { rateLimitPerHour: 300 },
     };
     return limits[tier as keyof typeof limits] || limits.free;
   }),
@@ -52,8 +52,8 @@ describe('Rate Limiting', () => {
     });
 
     it('should block requests exceeding limit', async () => {
-      // Mock 61st request for FREE tier (60/hour limit)
-      mockIncr.mockResolvedValue(61);
+      // Mock 101st request for FREE tier (100/hour limit)
+      mockIncr.mockResolvedValue(101);
 
       const result = await checkRateLimit('user1', 'athlete1', 'free', 'api-activities');
       expect(result.allowed).toBe(false);
@@ -61,12 +61,12 @@ describe('Rate Limiting', () => {
     });
 
     it('should have higher limits for pro tier', async () => {
-      // Mock 150th request for PRO tier (200/hour limit)
-      mockIncr.mockResolvedValue(150);
+      // Mock 200th request for PRO tier (300/hour limit)
+      mockIncr.mockResolvedValue(200);
 
       const result = await checkRateLimit('user1', 'athlete1', 'pro', 'api-activities');
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(50); // 200 - 150 = 50
+      expect(result.remaining).toBe(100); // 300 - 200 = 100
     });
 
     it('should calculate correct reset time', async () => {
