@@ -11,8 +11,11 @@ export const ENV = {
   // Falls back to DATABASE_URL if not set
   DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL,
 
-  REDIS_URL: process.env.REDIS_URL!,
-  REDIS_TOKEN: process.env.REDIS_TOKEN!,
+  // Redis/Upstash configuration
+  REDIS_URL: process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL!,
+  REDIS_TOKEN: process.env.REDIS_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL!,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
 
   RATE_OVERALL_15M: Number(process.env.RATE_OVERALL_15M ?? 200),
   RATE_OVERALL_DAILY: Number(process.env.RATE_OVERALL_DAILY ?? 2000),

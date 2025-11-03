@@ -9,6 +9,7 @@
     "@netlify/blobs": "^6.3.0",
     "@netlify/functions": "^2.8.0",
     "@supabase/supabase-js": "^2.75.0",
+    "@upstash/redis": "^1.35.6",
     "node-fetch": "^3.3.2",
     "pg": "^8.16.3"
   },

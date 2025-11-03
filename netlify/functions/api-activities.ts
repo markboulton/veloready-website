@@ -3,6 +3,7 @@ import { withDb, getAthlete } from "../lib/db-pooled";
 import { listActivitiesSince } from "../lib/strava";
 import { authenticate, getTierLimits } from "../lib/auth";
 import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
+import { checkRateLimit } from "../lib/rate-limit";
 
 /**
  * GET /api/activities
@@ -43,6 +44,32 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     }
 
     const { userId, athleteId, subscriptionTier } = auth;
+
+    // Check tier-based rate limit BEFORE processing request
+    const rateLimit = await checkRateLimit(
+      userId,
+      athleteId.toString(),
+      subscriptionTier,
+      'api-activities'
+    );
+
+    if (!rateLimit.allowed) {
+      return {
+        statusCode: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+        },
+        body: JSON.stringify({
+          error: 'RATE_LIMIT_EXCEEDED',
+          message: `Too many requests. Your ${subscriptionTier} plan allows ${getTierLimits(subscriptionTier).rateLimitPerHour} requests per hour. Please try again later.`,
+          resetAt: rateLimit.resetAt,
+          tier: subscriptionTier,
+        }),
+      };
+    }
 
     // Parse query parameters
     const requestedDays = parseInt(event.queryStringParameters?.daysBack || "30");
