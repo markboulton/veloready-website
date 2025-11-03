@@ -1,7 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { withDb } from "../lib/db-pooled";
 import { getStore } from "@netlify/blobs";
-import { authenticate } from "../lib/auth";
+import { authenticate, getTierLimits } from "../lib/auth";
 
 /**
  * GET /api/intervals/streams/:activityId
@@ -37,8 +37,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         body: JSON.stringify({ error: auth.error })
       };
     }
-    
-    const { userId, athleteId } = auth;
+
+    const { userId, athleteId, subscriptionTier } = auth;
+
+    // Get tier limits (for logging/metadata purposes)
+    const limits = getTierLimits(subscriptionTier);
 
     // Extract activity ID from path
     const pathParts = event.path.split('/');
@@ -52,7 +55,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       };
     }
 
-    console.log(`[API Intervals Streams] Request for activity: ${activityId} (athlete: ${athleteId})`);
+    console.log(`[API Intervals Streams] Request for activity: ${activityId} (athlete: ${athleteId}, tier: ${subscriptionTier})`);
 
     // Get Intervals.icu credentials
     const athlete = await withDb(async (db) => {
@@ -98,7 +101,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
               "X-Cache": "HIT",
               "X-Source": "intervals.icu"
             },
-            body: JSON.stringify(cached)
+            body: JSON.stringify({
+              ...cached,
+              metadata: {
+                ...(cached.metadata || {}),
+                tier: subscriptionTier
+              }
+            })
           };
         }
       } catch (cacheError) {
@@ -165,7 +174,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         "X-Cache": "MISS",
         "X-Source": "intervals.icu"
       },
-      body: JSON.stringify(streams)
+      body: JSON.stringify({
+        ...streams,
+        metadata: {
+          ...(streams.metadata || {}),
+          tier: subscriptionTier
+        }
+      })
     };
 
   } catch (error: any) {

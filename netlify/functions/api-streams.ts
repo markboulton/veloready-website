@@ -1,7 +1,7 @@
 import { HandlerEvent, HandlerContext } from "@netlify/functions";
 import { getStreams } from "../lib/strava";
 import { getStore } from "@netlify/blobs";
-import { authenticate } from "../lib/auth";
+import { authenticate, getTierLimits } from "../lib/auth";
 import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
@@ -45,8 +45,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         body: JSON.stringify({ error: auth.error })
       };
     }
-    
-    const { userId, athleteId } = auth;
+
+    const { userId, athleteId, subscriptionTier } = auth;
+
+    // Get tier limits (for logging/metadata purposes)
+    const limits = getTierLimits(subscriptionTier);
 
     // Extract activity ID from path
     const pathParts = event.path.split('/');
@@ -60,7 +63,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       };
     }
 
-    console.log(`[API Streams] Request for activity: ${activityId} (athlete: ${athleteId})`);
+    console.log(`[API Streams] Request for activity: ${activityId} (athlete: ${athleteId}, tier: ${subscriptionTier})`);
 
     // Try Netlify Blobs cache first (24-hour TTL)
     let cached = null;
@@ -94,7 +97,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
             "Cache-Control": "public, max-age=86400", // 24 hours
             "X-Cache": "HIT"
           },
-          body: JSON.stringify(cached)
+          body: JSON.stringify({
+            ...cached,
+            metadata: {
+              ...(cached.metadata || {}),
+              tier: subscriptionTier
+            }
+          })
         };
       } else {
         console.log(`[API Streams] ❌ Cache MISS for ${activityId} - no data found`);
@@ -153,7 +162,13 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         "X-Cache": "MISS",
         "X-Cache-Write": cacheStatus
       },
-      body: JSON.stringify(streams)
+      body: JSON.stringify({
+        ...streams,
+        metadata: {
+          ...(streams.metadata || {}),
+          tier: subscriptionTier
+        }
+      })
     };
 
   } catch (error: any) {
