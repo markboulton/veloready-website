@@ -15,7 +15,7 @@ export type SubscriptionTier = 'free' | 'trial' | 'pro';
 // Tier limits configuration
 export const TIER_LIMITS = {
   free: {
-    daysBack: 90,
+    daysBack: 120, // Supports research-backed FTP calculation (120-day window)
     maxActivities: 100,
     activitiesPerHour: 60,
     streamsPerHour: 30,
@@ -144,7 +144,13 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
     let subscriptionTier: SubscriptionTier = 'free';
     let subscriptionExpires: Date | null = null;
 
-    if (subscription.data && !subscription.error) {
+    // Developer override: Grant PRO tier to development/test accounts
+    const devAthleteIds = [104662]; // Mark Boulton's athlete ID
+    if (devAthleteIds.includes(athlete.id)) {
+      console.log(`[Auth] 🔧 Developer override: Granting PRO tier to athlete ${athlete.id}`);
+      subscriptionTier = 'pro';
+      subscriptionExpires = null; // Lifetime for developers
+    } else if (subscription.data && !subscription.error) {
       const tier = subscription.data.subscription_tier as SubscriptionTier;
       const expiresAt = subscription.data.expires_at;
 
@@ -152,7 +158,7 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
       if (expiresAt) {
         const expiryDate = new Date(expiresAt);
         subscriptionExpires = expiryDate;
-        
+
         if (expiryDate > new Date()) {
           // Subscription is still active
           subscriptionTier = tier;
