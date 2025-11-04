@@ -32,6 +32,8 @@
     "test:integration": "vitest run tests/integration",
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest --watch",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Lint check (placeholder)\""
   }
 }
