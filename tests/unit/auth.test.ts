@@ -6,7 +6,7 @@ describe('Auth Module', () => {
   describe('TIER_LIMITS', () => {
     it('should have correct limits for free tier', () => {
       expect(TIER_LIMITS.free).toEqual({
-        daysBack: 90,
+        daysBack: 120,
         maxActivities: 100,
         activitiesPerHour: 60,
         streamsPerHour: 30,
