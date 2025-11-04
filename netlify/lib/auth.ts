@@ -71,6 +71,9 @@ export function getTierLimits(tier: SubscriptionTier) {
  * }
  * const { userId, athleteId } = auth;
  */
+// Developer athlete IDs allowed to use debug tier override
+const DEBUG_ALLOWED_ATHLETES = [104662]; // Mark Boulton
+
 export async function authenticate(event: HandlerEvent): Promise<AuthResult | AuthError> {
   try {
     // Extract Authorization header
@@ -144,13 +147,25 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
     let subscriptionTier: SubscriptionTier = 'free';
     let subscriptionExpires: Date | null = null;
 
-    // Developer override: Grant PRO tier to development/test accounts
-    const devAthleteIds = [104662]; // Mark Boulton's athlete ID
-    if (devAthleteIds.includes(athlete.id)) {
-      console.log(`[Auth] 🔧 Developer override: Granting PRO tier to athlete ${athlete.id}`);
-      subscriptionTier = 'pro';
-      subscriptionExpires = null; // Lifetime for developers
-    } else if (subscription.data && !subscription.error) {
+    // Check for debug tier override header (only for whitelisted developers)
+    const debugOverrideTier = event.headers['x-debug-override-tier'] || event.headers['X-Debug-Override-Tier'];
+    if (debugOverrideTier && DEBUG_ALLOWED_ATHLETES.includes(athlete.id)) {
+      const requestedTier = debugOverrideTier.toLowerCase() as SubscriptionTier;
+      if (['free', 'trial', 'pro'].includes(requestedTier)) {
+        console.log(`[Auth] 🔧 Debug override: Setting tier to '${requestedTier}' for athlete ${athlete.id}`);
+        subscriptionTier = requestedTier;
+        subscriptionExpires = null; // No expiry for debug overrides
+
+        return {
+          userId: user.id,
+          athleteId: athlete.id,
+          subscriptionTier,
+          subscriptionExpires
+        };
+      }
+    }
+
+    if (subscription.data && !subscription.error) {
       const tier = subscription.data.subscription_tier as SubscriptionTier;
       const expiresAt = subscription.data.expires_at;
 
