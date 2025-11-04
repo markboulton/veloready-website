@@ -1,10 +1,12 @@
 import { Redis } from '@upstash/redis';
 import { getTierLimits } from './auth';
+import { ENV } from './env';
 
-// Initialize Redis client using existing Upstash credentials
+// Initialize Redis client using centralized ENV config
+// Supports both REDIS_URL/REDIS_TOKEN and UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: ENV.REDIS_URL,
+  token: ENV.REDIS_TOKEN,
 });
 
 /**
