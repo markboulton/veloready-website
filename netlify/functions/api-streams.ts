@@ -6,21 +6,36 @@ import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
 
 /**
  * GET /api/streams/:activityId
- * 
+ *
  * Fetch activity streams (power, HR, cadence, etc.) with multi-layer caching
- * 
+ *
  * Path params:
  * - activityId: Strava activity ID
- * 
+ *
  * Returns: Strava streams data
- * 
+ *
  * Caching Strategy:
  * - Layer 1: HTTP Cache-Control (24 hours) - CDN/browser cache
  * - Layer 2: Netlify Blobs (persistent) - backend cache
  * - Layer 3: Strava API (on-demand)
- * 
+ *
  * Compliant with Strava 7-day cache rule. iOS app can cache locally for 7 days.
  */
+
+/**
+ * Helper function to generate no-cache headers that prevent Netlify CDN caching
+ */
+function getNoCacheHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'CDN-Cache-Control': 'no-store',
+    'Netlify-CDN-Cache-Control': 'no-store',
+    'Netlify-Vary': 'query',
+  };
+}
 export async function handler(event: HandlerEvent, context: HandlerContext) {
   // Rate limiting: 60 requests per minute per client
   const rateLimitResponse = await enforceRateLimit(event, RateLimitPresets.STANDARD);
@@ -30,13 +45,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   if (event.httpMethod !== "GET") {
     return {
       statusCode: 405,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache",
-        "Expires": "0"
-      },
-      body: JSON.stringify({ error: "Method not allowed" })
+      headers: getNoCacheHeaders(),
+      body: JSON.stringify({
+        error: "Method not allowed",
+        timestamp: Date.now()
+      })
     };
   }
 
@@ -46,13 +59,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if ('error' in auth) {
       return {
         statusCode: auth.statusCode,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-          "Pragma": "no-cache",
-          "Expires": "0"
-        },
-        body: JSON.stringify({ error: auth.error })
+        headers: getNoCacheHeaders(),
+        body: JSON.stringify({
+          error: auth.error,
+          timestamp: Date.now()
+        })
       };
     }
 
@@ -68,13 +79,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if (!activityId || activityId === 'api-streams') {
       return {
         statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-          "Pragma": "no-cache",
-          "Expires": "0"
-        },
-        body: JSON.stringify({ error: "Activity ID required" })
+        headers: getNoCacheHeaders(),
+        body: JSON.stringify({
+          error: "Activity ID required",
+          timestamp: Date.now()
+        })
       };
     }
 
@@ -190,18 +199,14 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
 
   } catch (error: any) {
     console.error("[API Streams] Error:", error);
-    
+
     return {
       statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache",
-        "Expires": "0"
-      },
-      body: JSON.stringify({ 
+      headers: getNoCacheHeaders(),
+      body: JSON.stringify({
         error: "Failed to fetch streams",
-        message: error.message 
+        message: error.message,
+        timestamp: Date.now()
       })
     };
   }
