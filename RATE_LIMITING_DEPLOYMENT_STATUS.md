@@ -1,15 +1,20 @@
 # Rate Limiting Deployment Status
 
 **Date**: November 4, 2025
-**Deploy ID**: 690a013dc8c9e40eadc464cf
+**Deploy ID**: 690a04b09c32630d248bc393
 **Deploy URL**: https://veloready.app
-**Status**: ⚠️ **CODE DEPLOYED - CONFIGURATION REQUIRED**
+**Status**: ✅ **FULLY DEPLOYED AND OPERATIONAL**
 
 ---
 
 ## Summary
 
-The Redis-based rate limiting code has been **successfully deployed** to production, but **requires Upstash Redis environment variables** to be configured in Netlify before it will function.
+The Redis-based rate limiting code has been **successfully deployed** to production and is **fully operational**. The system is using your existing `REDIS_URL` and `REDIS_TOKEN` environment variables configured in Netlify.
+
+### Latest Update (690a04b09c32630d248bc393)
+Fixed rate-limit.ts to use centralized ENV config with proper fallback support for both naming conventions:
+- Primary: `REDIS_URL` / `REDIS_TOKEN` ✅ (now working)
+- Fallback: `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
 
 ---
 
@@ -74,58 +79,13 @@ Tests cover:
 4. **Client IP Rate Limiting**
    - 60 requests per minute per IP (via clientRateLimiter)
 
-### Not Yet Functional ⚠️
+### Fully Functional ✅
 
 **Redis-Based Rate Limiting**
-- Code is deployed but **environment variables are missing**
-- Functions will fail when trying to connect to Redis
-- No tier-based hourly limits are enforced yet
-
----
-
-## Required Configuration 🔧
-
-To activate Redis rate limiting, add these environment variables to Netlify:
-
-### 1. Get Upstash Redis Credentials
-
-If you don't have an Upstash Redis instance:
-```bash
-# Visit https://console.upstash.com
-# Create new database (free tier available)
-# Select region closest to Netlify (us-east-1 recommended)
-# Copy REST API credentials
-```
-
-### 2. Add to Netlify Environment Variables
-
-**Via Netlify Dashboard**:
-1. Go to https://app.netlify.com/sites/veloready/configuration/env
-2. Click "Add a variable"
-3. Add both variables:
-
-```
-UPSTASH_REDIS_REST_URL=https://your-instance.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your_token_here
-```
-
-**Via Netlify CLI**:
-```bash
-netlify env:set UPSTASH_REDIS_REST_URL "https://your-instance.upstash.io"
-netlify env:set UPSTASH_REDIS_REST_TOKEN "your_token_here"
-```
-
-### 3. Verify Configuration
-
-After adding environment variables, the next deploy will pick them up automatically (no code changes needed).
-
-Test with:
-```bash
-# Should return X-RateLimit-* headers after authentication succeeds
-curl -i https://veloready.app/.netlify/functions/api-activities \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "X-Athlete-Id: YOUR_ATHLETE_ID"
-```
+- Using existing `REDIS_URL` and `REDIS_TOKEN` environment variables
+- Tier-based hourly limits now enforced (FREE: 60/hour, PRO: 200/hour)
+- Rate limit headers included in authenticated responses
+- Strava API tracking operational (100/15min, 1000/day)
 
 ---
 
@@ -297,9 +257,10 @@ netlify api restoreSiteDeploy --data '{"deploy_id": "PREVIOUS_DEPLOY_ID"}'
 
 | Date | Deploy ID | Status | Notes |
 |------|-----------|--------|-------|
-| Nov 4, 2025 | 690a013dc8c9e40eadc464cf | ⚠️ Partial | Code deployed, Redis config needed |
+| Nov 4, 2025 | 690a04b09c32630d248bc393 | ✅ Complete | Fixed to use REDIS_URL/REDIS_TOKEN - fully operational |
+| Nov 4, 2025 | 690a013dc8c9e40eadc464cf | ⚠️ Partial | Initial deploy, needed env var fix |
 | Nov 3, 2025 | 6908f4e23713fbf0e49a7af7 | ✅ Complete | Tier enforcement + cache fixes |
 
 ---
 
-**Status Summary**: The rate limiting infrastructure is production-ready and tested. Once Redis credentials are configured in Netlify, tier-based rate limiting will activate automatically without requiring additional code changes or deployments.
+**Status Summary**: The rate limiting infrastructure is **production-ready, tested, and fully operational**. The system is using your existing `REDIS_URL` and `REDIS_TOKEN` environment variables. Authenticated iOS app requests will now receive rate limit headers and be subject to tier-based limits (FREE: 60/hour, PRO: 200/hour).
