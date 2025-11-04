@@ -1,6 +1,6 @@
 import { HandlerEvent } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
-import { withDb } from "./db";
+import { withDb } from "./db-pooled";
 
 /**
  * Authentication helper for Netlify Functions
