@@ -30,7 +30,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   if (event.httpMethod !== "GET") {
     return {
       statusCode: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      },
       body: JSON.stringify({ error: "Method not allowed" })
     };
   }
@@ -41,7 +46,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if ('error' in auth) {
       return {
         statusCode: auth.statusCode,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        },
         body: JSON.stringify({ error: auth.error })
       };
     }
@@ -58,7 +68,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if (!activityId || activityId === 'api-streams') {
       return {
         statusCode: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        },
         body: JSON.stringify({ error: "Activity ID required" })
       };
     }
@@ -95,6 +110,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           headers: {
             "Content-Type": "application/json",
             "Cache-Control": "public, max-age=86400", // 24 hours
+            "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
             "X-Cache": "HIT"
           },
           body: JSON.stringify({
@@ -159,6 +175,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=86400", // 24 hours
+        "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
         "X-Cache": "MISS",
         "X-Cache-Write": cacheStatus
       },
@@ -176,7 +193,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     
     return {
       statusCode: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      },
       body: JSON.stringify({ 
         error: "Failed to fetch streams",
         message: error.message 

@@ -27,7 +27,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
   if (event.httpMethod !== "GET") {
     return {
       statusCode: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      },
       body: JSON.stringify({ error: "Method not allowed" })
     };
   }
@@ -38,7 +43,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if ('error' in auth) {
       return {
         statusCode: auth.statusCode,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        },
         body: JSON.stringify({ error: auth.error })
       };
     }
@@ -58,6 +68,9 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         statusCode: 429,
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           'X-RateLimit-Limit': getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
           'X-RateLimit-Remaining': rateLimit.remaining.toString(),
           'X-RateLimit-Reset': rateLimit.resetAt.toString(),
@@ -82,7 +95,12 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if (requestedDays > limits.daysBack) {
       return {
         statusCode: 403,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        },
         body: JSON.stringify({
           error: 'TIER_LIMIT_EXCEEDED',
           message: `Your ${subscriptionTier} plan allows access to ${limits.daysBack} days of data. Upgrade to access more history.`,
@@ -143,6 +161,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "private, max-age=3600", // 1 hour cache (user-specific)
+        "Netlify-Cache-Tag": "api,activities,strava", // Cache tags for selective purging
         "X-Cache": "MISS", // Indicates this was fetched from Strava
         "X-Activity-Count": allActivities.length.toString()
       },
@@ -167,14 +186,24 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     if (error.message?.includes("not found")) {
       return {
         statusCode: 404,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        },
         body: JSON.stringify({ error: "Athlete not found" })
       };
     }
 
     return {
       statusCode: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      },
       body: JSON.stringify({ 
         error: "Failed to fetch activities",
         message: error.message 
