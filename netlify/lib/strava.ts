@@ -91,9 +91,10 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
   let blobStore;
   try {
     const siteID = process.env.SITE_ID;
-    const token = process.env.NETLIFY_BLOBS_TOKEN 
-      || process.env.NETLIFY_TOKEN 
-      || process.env.NETLIFY_FUNCTIONS_TOKEN;
+    // CRITICAL FIX: Only use valid token env vars, not NETLIFY_FUNCTIONS_TOKEN
+    // NETLIFY_FUNCTIONS_TOKEN can contain path-like values (e.g. "/pipeline")
+    // which cause "Failed to parse URL from /pipeline" errors
+    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
     
     if (siteID && token) {
       blobStore = getStore({
@@ -101,9 +102,15 @@ export async function listActivitiesSince(athleteId: number, afterEpochSec: numb
         siteID,
         token
       });
+      console.log(`[Strava Cache] Initialized with siteID and token`);
+    } else {
+      console.log(`[Strava Cache] Missing siteID or token - using default (no auth)`);
+      // Try without explicit credentials (will use environment defaults)
+      blobStore = getStore({ name: "strava-cache" });
     }
   } catch (e) {
-    console.log(`[Strava Cache] Blobs not available: ${e}`);
+    console.log(`[Strava Cache] Blobs init failed: ${e}`);
+    blobStore = null; // Explicitly set to null on error
   }
   
   if (blobStore) {
