@@ -75,6 +75,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     );
 
     if (!rateLimit.allowed) {
+      const retryAfterSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
       return {
         statusCode: 429,
         headers: {
@@ -82,10 +83,11 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           'X-RateLimit-Limit': getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
           'X-RateLimit-Remaining': rateLimit.remaining.toString(),
           'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+          'Retry-After': retryAfterSeconds.toString(),
         },
         body: JSON.stringify({
           error: 'RATE_LIMIT_EXCEEDED',
-          message: `Too many requests. Your ${subscriptionTier} plan allows ${getTierLimits(subscriptionTier).rateLimitPerHour} requests per hour. Please try again later.`,
+          message: `Too many requests. Your ${subscriptionTier} plan allows ${getTierLimits(subscriptionTier).rateLimitPerHour} requests per hour. Try again in ${Math.ceil(retryAfterSeconds / 60)} minutes.`,
           resetAt: rateLimit.resetAt,
           tier: subscriptionTier,
           timestamp: Date.now(),
@@ -168,7 +170,10 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         "Cache-Control": "private, max-age=3600", // 1 hour cache (user-specific)
         "Netlify-Cache-Tag": "api,activities,strava", // Cache tags for selective purging
         "X-Cache": "MISS", // Indicates this was fetched from Strava
-        "X-Activity-Count": allActivities.length.toString()
+        "X-Activity-Count": allActivities.length.toString(),
+        "X-RateLimit-Limit": getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
+        "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+        "X-RateLimit-Reset": rateLimit.resetAt.toString()
       },
       body: JSON.stringify({
         activities: allActivities,

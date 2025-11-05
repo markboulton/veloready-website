@@ -3,6 +3,7 @@ import { getStreams } from "../lib/strava";
 import { getStore } from "@netlify/blobs";
 import { authenticate, getTierLimits } from "../lib/auth";
 import { enforceRateLimit, RateLimitPresets } from "../lib/clientRateLimiter";
+import { checkRateLimit } from "../lib/rate-limit";
 
 /**
  * GET /api/streams/:activityId
@@ -69,6 +70,35 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
 
     const { userId, athleteId, subscriptionTier } = auth;
 
+    // Check tier-based rate limit BEFORE processing request
+    const rateLimit = await checkRateLimit(
+      userId,
+      athleteId.toString(),
+      subscriptionTier,
+      'api-streams'
+    );
+
+    if (!rateLimit.allowed) {
+      const retryAfterSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+      return {
+        statusCode: 429,
+        headers: {
+          ...getNoCacheHeaders(),
+          'X-RateLimit-Limit': getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+          'Retry-After': retryAfterSeconds.toString(),
+        },
+        body: JSON.stringify({
+          error: 'RATE_LIMIT_EXCEEDED',
+          message: `Too many requests. Your ${subscriptionTier} plan allows ${getTierLimits(subscriptionTier).rateLimitPerHour} requests per hour. Try again in ${Math.ceil(retryAfterSeconds / 60)} minutes.`,
+          resetAt: rateLimit.resetAt,
+          tier: subscriptionTier,
+          timestamp: Date.now(),
+        }),
+      };
+    }
+
     // Get tier limits (for logging/metadata purposes)
     const limits = getTierLimits(subscriptionTier);
 
@@ -120,7 +150,10 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
             "Content-Type": "application/json",
             "Cache-Control": "public, max-age=86400", // 24 hours
             "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
-            "X-Cache": "HIT"
+            "X-Cache": "HIT",
+            "X-RateLimit-Limit": getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
+            "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+            "X-RateLimit-Reset": rateLimit.resetAt.toString()
           },
           body: JSON.stringify({
             ...cached,
@@ -186,7 +219,10 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
         "Cache-Control": "public, max-age=86400", // 24 hours
         "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
         "X-Cache": "MISS",
-        "X-Cache-Write": cacheStatus
+        "X-Cache-Write": cacheStatus,
+        "X-RateLimit-Limit": getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
+        "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+        "X-RateLimit-Reset": rateLimit.resetAt.toString()
       },
       body: JSON.stringify({
         ...streams,
