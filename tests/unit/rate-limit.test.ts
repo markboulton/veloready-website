@@ -95,8 +95,10 @@ describe('Rate Limiting', () => {
   describe('trackStravaCall', () => {
     it('should allow calls within Strava limits', async () => {
       mockIncr
-        .mockResolvedValueOnce(1)  // 15-minute counter
-        .mockResolvedValueOnce(1); // daily counter
+        .mockResolvedValueOnce(1)   // Per-athlete 15-minute counter
+        .mockResolvedValueOnce(1)   // Per-athlete daily counter
+        .mockResolvedValueOnce(1)   // Total 15-minute counter
+        .mockResolvedValueOnce(1);  // Total daily counter
 
       const allowed = await trackStravaCall('athlete1');
       expect(allowed).toBe(true);
@@ -104,8 +106,10 @@ describe('Rate Limiting', () => {
 
     it('should block calls exceeding 15-minute limit', async () => {
       mockIncr
-        .mockResolvedValueOnce(101) // 15-minute counter (exceeds 100 limit)
-        .mockResolvedValueOnce(50);  // daily counter (within 1000 limit)
+        .mockResolvedValueOnce(101)  // Per-athlete 15-minute counter (exceeds 100 limit)
+        .mockResolvedValueOnce(50)   // Per-athlete daily counter (within 1000 limit)
+        .mockResolvedValueOnce(101)  // Total 15-minute counter
+        .mockResolvedValueOnce(50);  // Total daily counter
 
       const allowed = await trackStravaCall('athlete1');
       expect(allowed).toBe(false);
@@ -113,8 +117,10 @@ describe('Rate Limiting', () => {
 
     it('should block calls exceeding daily limit', async () => {
       mockIncr
-        .mockResolvedValueOnce(50)   // 15-minute counter (within 100 limit)
-        .mockResolvedValueOnce(1001); // daily counter (exceeds 1000 limit)
+        .mockResolvedValueOnce(50)    // Per-athlete 15-minute counter (within 100 limit)
+        .mockResolvedValueOnce(1001)  // Per-athlete daily counter (exceeds 1000 limit)
+        .mockResolvedValueOnce(50)    // Total 15-minute counter
+        .mockResolvedValueOnce(1001); // Total daily counter
 
       const allowed = await trackStravaCall('athlete1');
       expect(allowed).toBe(false);
@@ -122,26 +128,34 @@ describe('Rate Limiting', () => {
 
     it('should set TTL on first request', async () => {
       mockIncr
-        .mockResolvedValueOnce(1)  // First request in 15-min window
-        .mockResolvedValueOnce(1); // First request in daily window
+        .mockResolvedValueOnce(1)  // First request in 15-min window (per-athlete)
+        .mockResolvedValueOnce(1)  // First request in daily window (per-athlete)
+        .mockResolvedValueOnce(1)  // First request in 15-min window (total)
+        .mockResolvedValueOnce(1); // First request in daily window (total)
 
       await trackStravaCall('athlete1');
 
-      // Should set TTL for both windows
-      expect(mockExpire).toHaveBeenCalledTimes(2);
-      expect(mockExpire).toHaveBeenCalledWith(expect.any(String), 900);   // 15 minutes
-      expect(mockExpire).toHaveBeenCalledWith(expect.any(String), 86400); // 24 hours
+      // Should set TTL for all 4 windows (per-athlete + total)
+      expect(mockExpire).toHaveBeenCalledTimes(4);
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/athlete1:15min/), 900);   // Per-athlete 15 min
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/athlete1:daily/), 86400); // Per-athlete daily
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:15min/), 900);      // Total 15 min
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:daily/), 86400);    // Total daily
     });
 
-    it('should not set TTL on subsequent requests', async () => {
+    it('should not set TTL on subsequent requests (per-athlete)', async () => {
       mockIncr
-        .mockResolvedValueOnce(5)  // Not first request
-        .mockResolvedValueOnce(50); // Not first request
+        .mockResolvedValueOnce(5)   // Not first request (per-athlete 15min)
+        .mockResolvedValueOnce(50)  // Not first request (per-athlete daily)
+        .mockResolvedValueOnce(100) // Total 15min (always tracked)
+        .mockResolvedValueOnce(500); // Total daily (always tracked)
 
       await trackStravaCall('athlete1');
 
-      // Should not set TTL
-      expect(mockExpire).not.toHaveBeenCalled();
+      // Should set TTL for total keys (always called) but not per-athlete keys
+      expect(mockExpire).toHaveBeenCalledTimes(2);
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:15min/), 900);
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:daily/), 86400);
     });
   });
 
@@ -158,19 +172,27 @@ describe('Rate Limiting', () => {
 
     it('should use correct Strava rate limit key patterns', async () => {
       mockIncr
-        .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(1);
+        .mockResolvedValueOnce(1)  // Per-athlete 15min
+        .mockResolvedValueOnce(1)  // Per-athlete daily
+        .mockResolvedValueOnce(1)  // Total 15min
+        .mockResolvedValueOnce(1); // Total daily
 
       await trackStravaCall('athlete456');
 
-      expect(mockIncr).toHaveBeenCalledTimes(2);
+      expect(mockIncr).toHaveBeenCalledTimes(4);
 
-      const fifteenMinKey = mockIncr.mock.calls[0][0];
-      const dailyKey = mockIncr.mock.calls[1][0];
+      const athleteFifteenMinKey = mockIncr.mock.calls[0][0];
+      const athleteDailyKey = mockIncr.mock.calls[1][0];
+      const totalFifteenMinKey = mockIncr.mock.calls[2][0];
+      const totalDailyKey = mockIncr.mock.calls[3][0];
 
-      // Keys should follow patterns
-      expect(fifteenMinKey).toMatch(/^rate_limit:strava:athlete456:15min:\d+$/);
-      expect(dailyKey).toMatch(/^rate_limit:strava:athlete456:daily:\d+$/);
+      // Per-athlete keys should include athlete ID
+      expect(athleteFifteenMinKey).toMatch(/^rate_limit:strava:athlete456:15min:\d+$/);
+      expect(athleteDailyKey).toMatch(/^rate_limit:strava:athlete456:daily:\d+$/);
+      
+      // Total keys should use 'total' instead of athlete ID
+      expect(totalFifteenMinKey).toMatch(/^rate_limit:strava:total:15min:\d+$/);
+      expect(totalDailyKey).toMatch(/^rate_limit:strava:total:daily:\d+$/);
     });
   });
 });
