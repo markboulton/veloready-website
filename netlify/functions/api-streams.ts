@@ -148,7 +148,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           statusCode: 200,
           headers: {
             "Content-Type": "application/json",
-            "Cache-Control": "public, max-age=86400", // 24 hours
+            "Cache-Control": "public, max-age=604800", // 7 days (Strava compliant)
             "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
             "X-Cache": "HIT",
             "X-RateLimit-Limit": getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
@@ -216,7 +216,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400", // 24 hours
+        "Cache-Control": "public, max-age=604800", // 7 days (Strava allows 7-day cache, optimal for scaling)
         "Netlify-Cache-Tag": "api,streams,strava", // Cache tags for selective purging
         "X-Cache": "MISS",
         "X-Cache-Write": cacheStatus,

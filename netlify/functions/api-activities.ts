@@ -167,7 +167,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=3600", // 1 hour cache (user-specific)
+        "Cache-Control": "private, max-age=14400", // 4 hours cache (user-specific, with webhooks we can cache longer)
         "Netlify-Cache-Tag": "api,activities,strava", // Cache tags for selective purging
         "X-Cache": "MISS", // Indicates this was fetched from Strava
         "X-Activity-Count": allActivities.length.toString(),
@@ -184,7 +184,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           daysBack,
           limit,
           count: allActivities.length,
-          cachedUntil: new Date(Date.now() + 3600000).toISOString()
+          cachedUntil: new Date(Date.now() + 14400000).toISOString() // 4 hours
         }
       })
     };

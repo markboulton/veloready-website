@@ -79,6 +79,16 @@ export async function trackStravaCall(athleteId: string): Promise<boolean> {
     await redis.expire(dailyKey, 86400); // 24 hours
   }
 
+  // Track aggregate totals for monitoring dashboard
+  const totalFifteenMinKey = `rate_limit:strava:total:15min:${fifteenMinWindow}`;
+  const totalDailyKey = `rate_limit:strava:total:daily:${dailyWindow}`;
+  
+  await redis.incr(totalFifteenMinKey);
+  await redis.expire(totalFifteenMinKey, 900); // 15 minutes
+  
+  await redis.incr(totalDailyKey);
+  await redis.expire(totalDailyKey, 86400); // 24 hours
+
   // Check both limits
   const fifteenMinAllowed = fifteenMinCount <= 100;
   const dailyAllowed = dailyCount <= 1000;
