@@ -1,19 +1,30 @@
 import { Client } from "pg";
+import { HandlerEvent } from "@netlify/functions";
+import { authenticate } from "../lib/auth";
 
 /**
  * Get Strava access token for the authenticated athlete
  * 
  * Returns the access token if valid, or refreshes it if expired
  * 
- * TODO: Add authentication to verify athlete ID
+ * Requires Supabase JWT authentication
  */
-export async function handler(event) {
+export async function handler(event: HandlerEvent) {
   try {
-    // TODO: Get athlete ID from session/auth header
-    // For now, use a default athlete ID (this should be secured in production!)
-    const athleteId = 104662; // Mark's athlete ID
+    // Authenticate request using Supabase JWT
+    const auth = await authenticate(event);
     
-    console.log(`[Strava Token] Token requested for athlete ${athleteId}`);
+    if ('error' in auth) {
+      console.error(`[Strava Token] Authentication failed: ${auth.error}`);
+      return {
+        statusCode: auth.statusCode,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: auth.error })
+      };
+    }
+    
+    const { athleteId } = auth;
+    console.log(`[Strava Token] Token requested for authenticated athlete ${athleteId}`);
     
     // Connect to database
     const db = new Client({ connectionString: process.env.DATABASE_URL });
