@@ -58,7 +58,7 @@ function getPool(): Pool {
       max: 10,                      // Max 10 connections per function instance
       min: 0,                       // No minimum (conserve resources)
       idleTimeoutMillis: 30000,     // Release idle connections after 30s
-      connectionTimeoutMillis: 2000, // Fail fast if pool exhausted (2s)
+      connectionTimeoutMillis: 5000, // Wait up to 5s for connection (increased from 2s)
 
       // Statement timeout (prevent long-running queries)
       statement_timeout: 10000,     // 10s max per query
