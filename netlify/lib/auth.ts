@@ -1,6 +1,6 @@
 import { HandlerEvent } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
-import { withDb } from "./db-pooled";
+import { withDbPooled } from "./db-pooled";
 
 /**
  * Authentication helper for Netlify Functions
@@ -120,7 +120,7 @@ export async function authenticate(event: HandlerEvent): Promise<AuthResult | Au
 
     // Fetch athlete record and subscription in parallel
     const [athlete, subscription] = await Promise.all([
-      withDb(async (db) => {
+      withDbPooled(async (db) => {
         const { rows } = await db.query(
           `SELECT id FROM athlete WHERE user_id = $1`,
           [user.id]
