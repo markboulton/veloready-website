@@ -8,6 +8,8 @@ import { authenticate } from "../lib/auth";
  * Returns the access token if valid, or refreshes it if expired
  * 
  * Requires Supabase JWT authentication
+ * 
+ * @returns Access token or error
  */
 export async function handler(event: HandlerEvent) {
   try {
