@@ -38,9 +38,9 @@ vi.mock('../../netlify/lib/auth', () => ({
 describe('Rate Limiting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset to default mock values
-    mockIncr.mockResolvedValue(1);
-    mockExpire.mockResolvedValue(true);
+    // Reset to default mock values - important to clear any mockResolvedValueOnce chains
+    mockIncr.mockReset().mockResolvedValue(1);
+    mockExpire.mockReset().mockResolvedValue(true);
   });
 
   describe('checkRateLimit', () => {
