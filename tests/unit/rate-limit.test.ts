@@ -130,32 +130,34 @@ describe('Rate Limiting', () => {
       mockIncr
         .mockResolvedValueOnce(1)  // First request in 15-min window (per-athlete)
         .mockResolvedValueOnce(1)  // First request in daily window (per-athlete)
-        .mockResolvedValueOnce(1)  // First request in 15-min window (total)
-        .mockResolvedValueOnce(1); // First request in daily window (total)
+        .mockResolvedValueOnce(1)  // First request in 15-min window (total - trackAggregateMetrics)
+        .mockResolvedValueOnce(1); // First request in daily window (total - trackAggregateMetrics)
 
       await trackStravaCall('athlete1');
 
-      // Should set TTL for all 4 windows (per-athlete + total)
+      // Should set TTL for all 4 windows: 2 per-athlete + 2 total (from trackAggregateMetrics)
+      // trackAggregateMetrics always calls expire after incr, regardless of count value
       expect(mockExpire).toHaveBeenCalledTimes(4);
       expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/athlete1:15min/), 900);   // Per-athlete 15 min
-      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/athlete1:daily/), 86400); // Per-athlete daily
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/athlete1:day/), 86400);   // Per-athlete daily
       expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:15min/), 900);      // Total 15 min
-      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:daily/), 86400);    // Total daily
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:day/), 86400);      // Total daily
     });
 
     it('should not set TTL on subsequent requests (per-athlete)', async () => {
       mockIncr
         .mockResolvedValueOnce(5)   // Not first request (per-athlete 15min)
         .mockResolvedValueOnce(50)  // Not first request (per-athlete daily)
-        .mockResolvedValueOnce(100) // Total 15min (always tracked)
-        .mockResolvedValueOnce(500); // Total daily (always tracked)
+        .mockResolvedValueOnce(100) // Total 15min (trackAggregateMetrics always calls incr + expire)
+        .mockResolvedValueOnce(500); // Total daily (trackAggregateMetrics always calls incr + expire)
 
       await trackStravaCall('athlete1');
 
-      // Should set TTL for total keys (always called) but not per-athlete keys
+      // trackAggregateMetrics always calls expire after every incr
+      // So we expect 2 expire calls for total keys (regardless of count values)
       expect(mockExpire).toHaveBeenCalledTimes(2);
       expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:15min/), 900);
-      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:daily/), 86400);
+      expect(mockExpire).toHaveBeenCalledWith(expect.stringMatching(/total:day/), 86400);
     });
   });
 
@@ -174,8 +176,8 @@ describe('Rate Limiting', () => {
       mockIncr
         .mockResolvedValueOnce(1)  // Per-athlete 15min
         .mockResolvedValueOnce(1)  // Per-athlete daily
-        .mockResolvedValueOnce(1)  // Total 15min
-        .mockResolvedValueOnce(1); // Total daily
+        .mockResolvedValueOnce(1)  // Total 15min (trackAggregateMetrics)
+        .mockResolvedValueOnce(1); // Total daily (trackAggregateMetrics)
 
       await trackStravaCall('athlete456');
 
@@ -187,12 +189,13 @@ describe('Rate Limiting', () => {
       const totalDailyKey = mockIncr.mock.calls[3][0];
 
       // Per-athlete keys should include athlete ID
+      // Note: RateLimitWindow.Daily enum value is 'day', not 'daily'
       expect(athleteFifteenMinKey).toMatch(/^rate_limit:strava:athlete456:15min:\d+$/);
-      expect(athleteDailyKey).toMatch(/^rate_limit:strava:athlete456:daily:\d+$/);
+      expect(athleteDailyKey).toMatch(/^rate_limit:strava:athlete456:day:\d+$/);
       
       // Total keys should use 'total' instead of athlete ID
       expect(totalFifteenMinKey).toMatch(/^rate_limit:strava:total:15min:\d+$/);
-      expect(totalDailyKey).toMatch(/^rate_limit:strava:total:daily:\d+$/);
+      expect(totalDailyKey).toMatch(/^rate_limit:strava:total:day:\d+$/);
     });
   });
 });
