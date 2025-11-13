@@ -163,13 +163,23 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
     // Predictive pre-fetching: include URLs for top 3 most recent activities
     const prefetchUrls = allActivities.slice(0, 3).map(a => `/api/streams/${a.id}`);
 
+    // Smart Cache TTL: 5 minutes for recent activities (last 7 days), 1 hour for older
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDaysAgo = now - (7 * 24 * 3600);
+    const afterEpochSec = Math.floor(new Date(Date.now() - (daysBack * 24 * 3600 * 1000)).getTime() / 1000);
+    const isRecentQuery = afterEpochSec >= sevenDaysAgo;
+    const cacheTTL = isRecentQuery ? 300 : 3600; // 5 min for recent, 1 hour for older
+    
+    console.log(`[API Activities] Cache TTL: ${cacheTTL}s (${isRecentQuery ? 'RECENT' : 'HISTORICAL'} data)`);
+
     return {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=14400", // 4 hours cache (user-specific, with webhooks we can cache longer)
+        "Cache-Control": `public, max-age=${cacheTTL}`, // Edge Cache handles expiration automatically
         "Netlify-Cache-Tag": "api,activities,strava", // Cache tags for selective purging
         "X-Cache": "MISS", // Indicates this was fetched from Strava
+        "X-Cache-TTL": cacheTTL.toString(), // For debugging
         "X-Activity-Count": allActivities.length.toString(),
         "X-RateLimit-Limit": getTierLimits(subscriptionTier).rateLimitPerHour.toString(),
         "X-RateLimit-Remaining": rateLimit.remaining.toString(),
@@ -184,7 +194,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           daysBack,
           limit,
           count: allActivities.length,
-          cachedUntil: new Date(Date.now() + 14400000).toISOString() // 4 hours
+          cachedUntil: new Date(Date.now() + (cacheTTL * 1000)).toISOString()
         }
       })
     };
