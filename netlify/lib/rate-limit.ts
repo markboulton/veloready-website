@@ -1,6 +1,7 @@
 import { Redis } from '@upstash/redis';
 import { getTierLimits } from './auth';
 import { ENV } from './env';
+import { checkProviderRateLimit, trackStravaCall as trackStravaCallNew } from './provider-rate-limit';
 
 // Initialize Redis client using centralized ENV config
 // Supports both REDIS_URL/REDIS_TOKEN and UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN
@@ -53,47 +54,68 @@ export async function checkRateLimit(
 }
 
 /**
+ * Check combined rate limits (user tier + provider)
+ * This is the recommended method for new integrations
+ * @param userId - User ID
+ * @param athleteId - Athlete ID
+ * @param tier - Subscription tier
+ * @param endpoint - API endpoint name
+ * @param provider - Provider name (e.g., 'strava', 'intervalsICU')
+ * @returns Combined rate limit status
+ */
+export async function checkCombinedRateLimit(
+  userId: string,
+  athleteId: string,
+  tier: string,
+  endpoint: string,
+  provider: string
+): Promise<{
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  reason?: string;
+}> {
+  // Check user tier limits first
+  const tierCheck = await checkRateLimit(userId, athleteId, tier, endpoint);
+
+  if (!tierCheck.allowed) {
+    return {
+      allowed: false,
+      remaining: tierCheck.remaining,
+      resetAt: tierCheck.resetAt,
+      reason: `User tier limit exceeded (${tier})`,
+    };
+  }
+
+  // Check provider-specific limits
+  const providerCheck = await checkProviderRateLimit(provider, athleteId);
+
+  if (!providerCheck.allowed) {
+    // Return the most restrictive limit
+    return {
+      allowed: false,
+      remaining: Math.min(...Object.values(providerCheck.remaining)),
+      resetAt: Math.min(...Object.values(providerCheck.resetAt)),
+      reason: providerCheck.reason,
+    };
+  }
+
+  // Both checks pass
+  return {
+    allowed: true,
+    remaining: tierCheck.remaining,
+    resetAt: tierCheck.resetAt,
+  };
+}
+
+/**
  * Track Strava API calls to avoid hitting their rate limits
  * Strava limits: 100 requests per 15 minutes, 1000 requests per day
  * @param athleteId - Athlete ID
  * @returns Whether the call is allowed
+ * @deprecated Use checkProviderRateLimit('strava', athleteId) instead
  */
 export async function trackStravaCall(athleteId: string): Promise<boolean> {
-  const now = Date.now();
-
-  // Track 15-minute window (100 req limit)
-  const fifteenMinWindow = Math.floor(now / 900000); // 15 min in ms
-  const fifteenMinKey = `rate_limit:strava:${athleteId}:15min:${fifteenMinWindow}`;
-
-  const fifteenMinCount = await redis.incr(fifteenMinKey);
-  if (fifteenMinCount === 1) {
-    await redis.expire(fifteenMinKey, 900); // 15 minutes
-  }
-
-  // Track daily window (1000 req limit)
-  const dailyWindow = Math.floor(now / 86400000); // Day in ms
-  const dailyKey = `rate_limit:strava:${athleteId}:daily:${dailyWindow}`;
-
-  const dailyCount = await redis.incr(dailyKey);
-  if (dailyCount === 1) {
-    await redis.expire(dailyKey, 86400); // 24 hours
-  }
-
-  // Track aggregate totals for monitoring dashboard
-  const totalFifteenMinKey = `rate_limit:strava:total:15min:${fifteenMinWindow}`;
-  const totalDailyKey = `rate_limit:strava:total:daily:${dailyWindow}`;
-  
-  await redis.incr(totalFifteenMinKey);
-  await redis.expire(totalFifteenMinKey, 900); // 15 minutes
-  
-  await redis.incr(totalDailyKey);
-  await redis.expire(totalDailyKey, 86400); // 24 hours
-
-  // Check both limits
-  const fifteenMinAllowed = fifteenMinCount <= 100;
-  const dailyAllowed = dailyCount <= 1000;
-
-  console.log(`[Strava Rate Limit] athleteId=${athleteId}, 15min=${fifteenMinCount}/100, daily=${dailyCount}/1000`);
-
-  return fifteenMinAllowed && dailyAllowed;
+  // Use the new provider-aware rate limiting
+  return trackStravaCallNew(athleteId);
 }

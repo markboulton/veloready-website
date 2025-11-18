@@ -49,6 +49,11 @@ function getPool(): Pool {
   if (!pool) {
     // Prefer pooler URL if available, fall back to direct connection
     const connectionString = process.env.DATABASE_POOLER_URL || ENV.DATABASE_URL;
+    
+    // Log which connection type we're using (hide password)
+    const safeUrl = connectionString.replace(/:([^:@]+)@/, ':****@');
+    const usingPooler = !!process.env.DATABASE_POOLER_URL;
+    console.log(`[DB Pool] Initializing pool - Using ${usingPooler ? 'POOLER' : 'DIRECT'} connection: ${safeUrl}`);
 
     pool = new Pool({
       connectionString,
@@ -58,10 +63,10 @@ function getPool(): Pool {
       max: 10,                      // Max 10 connections per function instance
       min: 0,                       // No minimum (conserve resources)
       idleTimeoutMillis: 30000,     // Release idle connections after 30s
-      connectionTimeoutMillis: 2000, // Fail fast if pool exhausted (2s)
+      connectionTimeoutMillis: 10000, // Wait up to 10s for connection (increased from 5s)
 
       // Statement timeout (prevent long-running queries)
-      statement_timeout: 10000,     // 10s max per query
+      statement_timeout: 15000,     // 15s max per query
     });
 
     // Log pool errors (important for debugging)
@@ -90,6 +95,7 @@ function getPool(): Pool {
  * - Acquires a connection from the pool
  * - Executes your function
  * - Releases the connection back to the pool (even on error)
+ * - Retries on connection timeout errors
  *
  * @param fn Function to execute with the database client
  * @returns Result of the function
@@ -106,15 +112,45 @@ function getPool(): Pool {
  * ```
  */
 export async function withDb<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const pool = getPool();
-  const client = await pool.connect();
+  const maxRetries = 2;
+  let lastError: Error | null = null;
 
-  try {
-    return await fn(client);
-  } finally {
-    // Always release the client back to the pool
-    client.release();
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const pool = getPool();
+      const client = await pool.connect();
+
+      try {
+        return await fn(client);
+      } finally {
+        // Always release the client back to the pool
+        client.release();
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      // Only retry on connection timeout errors
+      const isConnectionError = 
+        error.message?.includes('Connection terminated') ||
+        error.message?.includes('connection timeout') ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ECONNRESET';
+
+      if (!isConnectionError || attempt === maxRetries) {
+        // Not a connection error, or out of retries
+        throw error;
+      }
+
+      // Log retry attempt
+      console.warn(`[DB Pool] Connection error on attempt ${attempt + 1}/${maxRetries + 1}, retrying...`, error.message);
+      
+      // Wait before retry (exponential backoff: 100ms, 200ms)
+      await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    }
   }
+
+  // Should never reach here, but TypeScript needs it
+  throw lastError!;
 }
 
 /**

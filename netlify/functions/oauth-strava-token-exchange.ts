@@ -141,6 +141,31 @@ export async function handler(event: HandlerEvent) {
       );
       
       console.log(`[Strava Token Exchange] Credentials stored for athlete ${data.athlete.id} with user_id ${userId}`);
+      
+      // FIX: Verify the record is visible before returning tokens (prevents race condition)
+      // Wait up to 3 seconds with exponential backoff
+      let verified = false;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const verifyResult = await db.query(
+          `SELECT id FROM athlete WHERE id = $1 AND user_id = $2`,
+          [data.athlete.id, userId]
+        );
+        
+        if (verifyResult.rows.length > 0) {
+          verified = true;
+          console.log(`[Strava Token Exchange] ✅ Athlete record verified (attempt ${attempt + 1})`);
+          break;
+        }
+        
+        // Wait with exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+        const delayMs = 100 * Math.pow(2, attempt);
+        console.log(`[Strava Token Exchange] ⏳ Waiting ${delayMs}ms for record visibility (attempt ${attempt + 1}/5)...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+      
+      if (!verified) {
+        console.error(`[Strava Token Exchange] ❌ Failed to verify athlete record after 5 attempts - may cause auth issues`);
+      }
     } catch (dbError: any) {
       console.error(`[Strava Token Exchange] Database error:`, dbError?.message || dbError);
       // Continue anyway - app can still work with athlete_id and Supabase session

@@ -1,9 +1,9 @@
 import { ENV } from "./env";
 import { withDb, getAthlete, saveTokens } from "./db-pooled";
-import { getStore } from "@netlify/blobs";
 import { PoolClient } from "pg";
 
-// Blobs store will be created dynamically in functions
+// Note: Netlify Blobs removed from activities - Edge Cache handles caching automatically
+// Blobs still used in api-streams.ts for large, immutable stream data
 
 type Tokens = { access_token: string; refresh_token: string; expires_at: number; };
 
@@ -83,77 +83,17 @@ export async function getStreams(athleteId: number, activityId: number) {
 }
 
 export async function listActivitiesSince(athleteId: number, afterEpochSec: number, page: number, perPage = 200) {
-  // Cache key: activities:{athleteId}:{afterEpochSec}:{page}
-  // Cache for 1 hour to prevent repeated API calls from iOS app
-  const cacheKey = `activities:${athleteId}:${afterEpochSec}:${page}`;
-  
-  // Create Blobs store dynamically
-  let blobStore;
-  try {
-    const siteID = process.env.SITE_ID;
-    // CRITICAL FIX: Only use valid token env vars, not NETLIFY_FUNCTIONS_TOKEN
-    // NETLIFY_FUNCTIONS_TOKEN can contain path-like values (e.g. "/pipeline")
-    // which cause "Failed to parse URL from /pipeline" errors
-    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
-    
-    if (siteID && token) {
-      blobStore = getStore({
-        name: "strava-cache",
-        siteID,
-        token
-      });
-      console.log(`[Strava Cache] Initialized with siteID and token`);
-    } else {
-      console.log(`[Strava Cache] Missing siteID or token - using default (no auth)`);
-      // Try without explicit credentials (will use environment defaults)
-      blobStore = getStore({ name: "strava-cache" });
-    }
-  } catch (e) {
-    console.log(`[Strava Cache] Blobs init failed: ${e}`);
-    blobStore = null; // Explicitly set to null on error
-  }
-  
-  if (blobStore) {
-    try {
-      // Check cache first
-      const cached = await blobStore.get(cacheKey, { type: "text" });
-      if (cached) {
-        console.log(`[Strava Cache] HIT for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
-        const parsedData = JSON.parse(cached);
-        console.log(`[Strava Cache] Returning ${Array.isArray(parsedData) ? parsedData.length : 'non-array'} cached activities`);
-        return parsedData;
-      }
-      console.log(`[Strava Cache] MISS for activities:list (athleteId=${athleteId}, after=${afterEpochSec})`);
-    } catch (e) {
-      // Cache miss or error, proceed to fetch from Strava
-      console.log(`[Strava Cache] ERROR: ${e}`);
-    }
-  } else {
-    console.log(`[Strava Cache] Blobs not available - skipping cache check`);
-  }
+  // Removed Netlify Blobs caching - Edge Cache handles this automatically via Cache-Control headers
+  // See: NETLIFY_BLOBS_TIMELINE.md for rationale
+  console.log(`[Strava] Fetching activities for athlete ${athleteId}, after=${afterEpochSec}, page=${page}`);
   
   const result = await withStravaAccess(athleteId, async (token) => {
     const url = `https://www.strava.com/api/v3/athlete/activities?after=${afterEpochSec}&page=${page}&per_page=${perPage}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }});
     if (res.ok) {
       await logApiCall(athleteId, 'activities:list');
-      
-      // Cache the result for 1 hour if Blobs is available
       const data = await res.json();
       console.log(`[Strava] Fetched ${Array.isArray(data) ? data.length : 'non-array'} activities from API`);
-      
-      if (blobStore) {
-        try {
-          await blobStore.set(cacheKey, JSON.stringify(data), { metadata: { ttl: 3600 } });
-          console.log(`[Strava Cache] Cached ${Array.isArray(data) ? data.length : 'non-array'} activities`);
-        } catch (e) {
-          // Cache write failed, but we still have the data
-          console.log(`[Strava] Failed to cache activities list: ${e}`);
-        }
-      } else {
-        console.log(`[Strava Cache] Blobs not available - skipping cache write`);
-      }
-      
       return data;
     }
     // Handle error responses
