@@ -159,7 +159,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
 
     console.log(`[API Activities] Fetched ${allActivities.length} activities from Strava (${page} pages)`);
 
-    // Return with cache headers (1 hour for better scaling)
+    // Return with cache headers (8 hours for optimal scaling with webhooks)
     // Predictive pre-fetching: include URLs for top 3 most recent activities
     const prefetchUrls = allActivities.slice(0, 3).map(a => `/api/streams/${a.id}`);
 
@@ -167,7 +167,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=14400", // 4 hours cache (user-specific, with webhooks we can cache longer)
+        "Cache-Control": "private, max-age=28800", // 8 hours cache (user-specific, with webhooks we can cache longer)
         "Netlify-Cache-Tag": "api,activities,strava", // Cache tags for selective purging
         "X-Cache": "MISS", // Indicates this was fetched from Strava
         "X-Activity-Count": allActivities.length.toString(),
@@ -184,7 +184,7 @@ export async function handler(event: HandlerEvent, context: HandlerContext) {
           daysBack,
           limit,
           count: allActivities.length,
-          cachedUntil: new Date(Date.now() + 14400000).toISOString() // 4 hours
+          cachedUntil: new Date(Date.now() + 28800000).toISOString() // 8 hours
         }
       })
     };
