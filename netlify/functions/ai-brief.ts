@@ -200,7 +200,7 @@ async function callOpenAI(userContent: string): Promise<string> {
     body: JSON.stringify({
       model: "gpt-4o-mini",
       temperature: 0.6,
-      max_tokens: 240,
+      max_tokens: 180,  // ~100 words (increased from 240 which was limiting output)
       top_p: 1,
       messages
     })
@@ -213,7 +213,7 @@ async function callOpenAI(userContent: string): Promise<string> {
   const j = await r.json();
   const text = j.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("no_text");
-  return `${text}`.slice(0, 280);
+  return text;
 }
 
 function fallbackText(payload: any): string {
@@ -224,7 +224,7 @@ function fallbackText(payload: any): string {
   const hrvTrend = hrvDelta >= 0.02 ? "HRV up" : hrvDelta <= -0.02 ? "HRV down" : "HRV steady";
   const rhrTrend = rhrDelta <= -0.02 ? "RHR down" : rhrDelta >= 0.02 ? "RHR up" : "RHR steady";
   const loadHint = tsb < -10 ? "Dial back slightly." : tsb > 10 ? "Consider more load." : "Stay the course.";
-  return `${color} - ${hrvTrend}, ${rhrTrend}. Aim ${tssLow}-${tssHigh} TSS. ${loadHint}`.slice(0, 280);
+  return `${color} - ${hrvTrend}, ${rhrTrend}. Aim ${tssLow}-${tssHigh} TSS. ${loadHint}`;
 }
 
 /** -------- Handler -------- */
