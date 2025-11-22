@@ -16,7 +16,7 @@ function cacheSet(key: string, text: string, ttlSec: number) {
 }
 
 /** ---------- Prompt ---------- */
-const PROMPT_VERSION = "coach-v6-interpretive";
+const PROMPT_VERSION = "coach-v7-hrv-guided";
 
 /** ----- System prompt: VeloReady Coach persona ----- */
 const SYSTEM_PROMPT = [
@@ -33,12 +33,21 @@ const SYSTEM_PROMPT = [
   "- Prioritize rest over all other metrics",
   "- Say 'your body needs extra recovery' NOT 'you are sick' (no diagnosis)",
   "- Cap at 30 TSS Z1 max",
-  "Decision framework (not rules to recite):",
-  "- Recovery <50% OR (HRV down >2% AND RHR up >2%) → de-load to Z1-Z2, max 55 TSS",
-  "- Recovery ≥66% AND TSB ≥0 → productive session at top of target (tempo/sweet spot/threshold)",
-  "- HRV up >15% → trust HRV over RHR (common after hard training)",
-  "- Sleep 85-100 = excellent, 70-84 = good, 60-69 = fair, <60 = poor",
-  "- Mixed signals → explain which metric wins and why",
+  "HRV Stability (CV) interpretation:",
+  "- CV < 5% = excellent stability, body adapting well, green light for quality sessions",
+  "- CV 5-10% = good stability, proceed with planned training",
+  "- CV 10-15% = moderate, nervous system stressed, be conservative",
+  "- CV > 15% = poor stability, high day-to-day variability, prioritize rest",
+  "HRV Trend interpretation (7-day rolling vs 30-day baseline):",
+  "- Improving: body is adapting to training load",
+  "- Stable: maintaining current fitness",
+  "- Declining: accumulated fatigue, recovery needed",
+  "IMPORTANT - When VeloReady Recommendation is provided:",
+  "- Use it as your starting point - it's calculated from HRV-guided training protocols",
+  "- Your job is to EXPLAIN why this recommendation makes sense given the metrics",
+  "- Connect the dots: e.g., 'HRV trend improving + low CV = nervous system recovered'",
+  "- Do NOT contradict the recommendation unless metrics clearly indicate otherwise",
+  "- Add practical guidance: specific TSS within the target range, workout type, fueling tips",
   "Format: 80-100 words. No emojis. No medical claims. Output the brief only, no reasoning."
 ].join(" ");
 
@@ -134,14 +143,21 @@ function isoDateUTC() {
 
 /** Build the live user content = context + rules + metrics line */
 function buildUserContent(payload: any) {
-  const { recovery, sleepDelta, sleepScore, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan, illnessIndicator } = payload ?? {};
-  
+  const {
+    recovery, sleepDelta, sleepScore, hrvDelta, rhrDelta, tsb, tssLow, tssHigh, plan, illnessIndicator,
+    // Phase 5: HRV-Guided Training Recommendation
+    trainingRecommendation, recommendationConfidence, recommendationReasoning,
+    hrvTrend, hrvCV, rollingHRV, hrvBaseline
+  } = payload ?? {};
+
   // Check for missing data
   const hasSleepScore = sleepScore !== null && sleepScore !== undefined;
   const hasSleepDelta = sleepDelta !== null && sleepDelta !== undefined;
   const hasHRVData = hrvDelta !== null && hrvDelta !== undefined;
   const hasRHRData = rhrDelta !== null && rhrDelta !== undefined;
-  
+  const hasHRVCV = hrvCV !== null && hrvCV !== undefined;
+  const hasHRVTrend = hrvTrend !== null && hrvTrend !== undefined;
+
   // Build sleep metric: prefer comprehensive score over delta
   let sleepMetric: string;
   if (hasSleepScore) {
@@ -151,7 +167,14 @@ function buildUserContent(payload: any) {
   } else {
     sleepMetric = `Sleep: N/A`;
   }
-  
+
+  // Build HRV stability descriptor from CV
+  let hrvStabilityMetric = "";
+  if (hasHRVCV) {
+    const stability = hrvCV < 5 ? "excellent" : hrvCV < 10 ? "good" : hrvCV < 15 ? "moderate" : "poor";
+    hrvStabilityMetric = `HRV Stability: ${stability} (CV ${hrvCV.toFixed(1)}%)`;
+  }
+
   // Build body stress indicator string if present
   let stressMetric = "";
   if (illnessIndicator && illnessIndicator.severity) {
@@ -159,25 +182,37 @@ function buildUserContent(payload: any) {
     const signalTypes = signals.map((s: any) => s.type).join(", ");
     stressMetric = ` | ⚠️ Body Stress: ${illnessIndicator.severity.toUpperCase()} (${Math.round(illnessIndicator.confidence * 100)}% confidence) - Signals: ${signalTypes}`;
   }
-  
+
   // Build metrics line with "N/A" for missing data
   const metricsLine = [
     `Recovery: ${recovery}%`,
     sleepMetric,
-    hasHRVData ? `HRV Delta: ${hrvDelta >= 0 ? '+' : ''}${Math.round(hrvDelta)}%` : `HRV Delta: N/A`,
-    hasRHRData ? `RHR Delta: ${rhrDelta >= 0 ? '+' : ''}${Math.round(rhrDelta)}%` : `RHR Delta: N/A`,
-    `TSB: ${tsb >= 0 ? '+' : ''}${tsb}`,
+    hasHRVData ? `HRV: ${hrvDelta >= 0 ? '+' : ''}${Math.round(hrvDelta)}% vs baseline` : `HRV: N/A`,
+    hrvStabilityMetric || null,
+    hasHRVTrend ? `HRV Trend: ${hrvTrend}` : null,
+    hasRHRData ? `RHR: ${rhrDelta >= 0 ? '+' : ''}${Math.round(rhrDelta)}%` : `RHR: N/A`,
+    `TSB: ${tsb >= 0 ? '+' : ''}${Math.round(tsb)}`,
     `Target TSS: ${tssLow}-${tssHigh}`,
     plan ? `Plan: ${plan}` : null
   ].filter(Boolean).join(" | ") + stressMetric;
-  
+
+  // Add Phase 5 training recommendation if available
+  let recommendationLine = "";
+  if (trainingRecommendation) {
+    const conf = recommendationConfidence ? ` (${recommendationConfidence}% confidence)` : "";
+    recommendationLine = `\n\n✓ VeloReady Recommendation: ${trainingRecommendation}${conf}`;
+    if (recommendationReasoning && recommendationReasoning.length > 0) {
+      recommendationLine += `\nReasoning: ${recommendationReasoning.join("; ")}`;
+    }
+  }
+
   // Add warning if critical data is missing
   let warning = "";
   if (!hasSleepScore && !hasSleepDelta) {
     warning = "\n⚠️ Sleep data unavailable (user did not wear watch overnight). Provide recommendations based on recovery score and other available metrics. Suggest wearing watch for better insights.";
   }
-  
-  return `${CONTEXT_PREFIX}\n${INTERPRETATION_GUIDANCE}\n\nToday's metrics:\n${metricsLine}${warning}`;
+
+  return `${CONTEXT_PREFIX}\n${INTERPRETATION_GUIDANCE}\n\nToday's metrics:\n${metricsLine}${recommendationLine}${warning}`;
 }
 
 /** Compose messages with system + few-shots + live user content */
